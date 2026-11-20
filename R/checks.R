@@ -203,7 +203,7 @@ check_compatible <- function(X, train_kinds) {
          paste(missing_vars, collapse = ", "), ".", call. = FALSE)
   }
 
-  # 2. Chaque variable doit être du même genre qu'au fit
+  # 2. Chaque variable doit être du même genre(numeric ou categorielle) qu'à l'apprentissage
   new_kinds <- vapply(X[names(train_kinds)], column_kind, character(1))
   wrong <- names(train_kinds)[new_kinds != train_kinds]
   if (length(wrong) > 0) {

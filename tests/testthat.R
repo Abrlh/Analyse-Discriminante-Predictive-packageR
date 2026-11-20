@@ -7,6 +7,6 @@
 # * https://testthat.r-lib.org/articles/special-files.html
 
 library(testthat)
-library(Analyse-Discriminante-Predictive-packageR)
+library(ldapred)
 
-test_check("Analyse-Discriminante-Predictive-packageR")
+test_check("ldapred")

@@ -11,6 +11,8 @@ Roxygen: list(markdown = TRUE)
 Imports: 
     R6
 Suggests: 
+    bsicons,
+    bslib,
     DT,
     readxl,
     shiny,

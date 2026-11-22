@@ -28,6 +28,13 @@ Rows with missing values are removed before fitting.
 
     \item{\code{coefficients}}{Coefficients of the classification functions
 (\code{NULL} until provided by the LDA classes).}
+
+    \item{\code{confusion}}{Confusion matrix on the training data
+(rows: observed classes, columns: predicted classes; \code{NULL} before
+fitting).}
+
+    \item{\code{accuracy}}{Proportion of correctly classified training observations
+(resubstitution rate, optimistic; \code{NULL} before fitting).}
   }
   \if{html}{\out{</div>}}
 }
@@ -38,6 +45,7 @@ Rows with missing values are removed before fitting.
     \item \href{#method-LDAClassifier-fit}{\code{LDAClassifier$fit()}}
     \item \href{#method-LDAClassifier-predict}{\code{LDAClassifier$predict()}}
     \item \href{#method-LDAClassifier-predict_proba}{\code{LDAClassifier$predict_proba()}}
+    \item \href{#method-LDAClassifier-score}{\code{LDAClassifier$score()}}
     \item \href{#method-LDAClassifier-print}{\code{LDAClassifier$print()}}
     \item \href{#method-LDAClassifier-summary}{\code{LDAClassifier$summary()}}
     \item \href{#method-LDAClassifier-clone}{\code{LDAClassifier$clone()}}
@@ -139,6 +147,31 @@ columns are ignored).}
   \subsection{Returns}{
     A numeric matrix with \code{nrow(X)} rows and one column per class.
 Rows with missing values contain \code{NA}.
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LDAClassifier-score"></a>}}
+\if{latex}{\out{\hypertarget{method-LDAClassifier-score}{}}}
+\subsection{\code{LDAClassifier$score()}}{
+  Proportion of correctly classified observations on new
+data (e.g. a test sample).
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LDAClassifier$score(X, y)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{X}}{Data frame containing the variables used for fitting.}
+      \item{\code{y}}{Factor of the true classes, of length \code{nrow(X)}.}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    A number between 0 and 1. Rows that cannot be predicted
+(missing values) are ignored.
   }
 }
 

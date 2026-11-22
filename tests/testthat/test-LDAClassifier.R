@@ -7,10 +7,16 @@ test_that("constructor sets defaults and rejects invalid values", {
   expect_error(LDAClassifier$new(selection = "toto"))
 })
 
-test_that("print works before fit and predict fails before fit", {
+test_that("methods behave correctly before fit", {
   m <- LDAClassifier$new()
   expect_output(print(m), "not fitted yet")
   expect_error(m$predict(iris), "not fitted")
+  expect_error(m$summary(), "not fitted")
+
+  # Les propriétés renvoient NULL avant le fit, sans planter
+  expect_null(m$confusion)
+  expect_null(m$accuracy)
+  expect_null(m$coefficients)
 })
 
 test_that("fit stops at the LDA step while LDA_Classic is not implemented", {
@@ -67,5 +73,27 @@ test_that("categorical predictors go through the whole pipeline", {
     m <- LDAClassifier$new()$fit(df, iris$Species)
     expect_true("size_small" %in% m$selected_vars)
     expect_length(m$predict(df), 150)
+  })
+})
+
+test_that("fit computes the confusion matrix and accuracy, score and summary work", {
+  with_fake_lda({
+    m <- LDAClassifier$new()$fit(iris[, 1:4], iris$Species)
+
+    # Matrice 3 x 3 contenant les 150 individus
+    expect_equal(dim(m$confusion), c(3, 3))
+    expect_equal(sum(m$confusion), 150)
+
+    # Le taux est la proportion de la diagonale (bonnes prédictions)
+    expect_equal(m$accuracy, sum(diag(m$confusion)) / 150)
+
+    # score() sur les mêmes données redonne le taux d'apprentissage
+    expect_equal(m$score(iris, iris$Species), m$accuracy)
+
+    # summary() affiche le résumé
+    expect_output(m$summary(), "Confusion matrix")
+
+    # Lecture seule
+    expect_error(m$accuracy <- 1, "read-only")
   })
 })

@@ -94,6 +94,14 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       private$.n <- nrow(Z)
       private$.n_vars <- ncol(X)
       private$.class_counts <- table(y)
+
+      # 9. Résumé du modèle (évaluation sur les données d'apprentissage)
+      pred_train <- private$.lda$predict(Z[, vars, drop = FALSE])
+      pred_train <- factor(as.character(pred_train), levels = levels(y))
+      private$.summary <- Summary$new(Z = Z[, vars, drop = FALSE], y = y,
+                                      pred = pred_train, lda = private$.lda)
+
+      # 10. Le modèle est entraîné seulement si tout a réussi
       private$.is_fitted <- TRUE
 
       invisible(self)
@@ -130,7 +138,8 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       prep <- private$prepare(X)
 
       # Matrice de la taille de X, remplie de NA par défaut
-      P <- matrix(NA_real_, nrow = nrow(X), ncol = length(private$.classes), dimnames = list(NULL, private$.classes))
+      P <- matrix(NA_real_, nrow = nrow(X), ncol = length(private$.classes),
+                  dimnames = list(NULL, private$.classes))
 
       # Probabilités placées aux lignes complètes, colonnes dans l'ordre des classes
       if (length(prep$rows) > 0) {
@@ -138,6 +147,22 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
         P[prep$rows, ] <- P_lda[, private$.classes, drop = FALSE]
       }
       P
+    },
+
+    # Methode score ***
+
+    #' @description Proportion of correctly classified observations on new
+    #'   data (e.g. a test sample).
+    #' @param X Data frame containing the variables used for fitting.
+    #' @param y Factor of the true classes, of length `nrow(X)`.
+    #' @return A number between 0 and 1. Rows that cannot be predicted
+    #'   (missing values) are ignored.
+    score = function(X, y) {
+      check_fitted(private$.is_fitted)
+      check_X(X)
+      check_y(y, X)
+      pred <- self$predict(X)
+      mean(as.character(pred) == as.character(y), na.rm = TRUE)
     },
 
     # Methode print ***
@@ -172,12 +197,9 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     #' @return The summary object, invisibly.
     summary = function(...) {
       check_fitted(private$.is_fitted)
-      # A FAIRE : créer et afficher l'objet Summary quand les classes LDA
-      # fourniront les coefficients et les indicateurs
-      stop("`summary()` is not implemented yet.", call. = FALSE)
+      print(private$.summary)
+      invisible(private$.summary)
     }
-
-
   ),
 
   private = list(
@@ -191,6 +213,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     .n = NULL,              # nombre d'individus utilisés
     .n_vars = NULL,         # nombre de variables d'origine
     .class_counts = NULL,   # effectifs par classe
+    .summary = NULL,        # objet Summary (créé à la fin du fit)
     .is_fitted = FALSE,
 
     # Code commun à predict() et predict_proba() :
@@ -242,6 +265,21 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       if (!missing(value)) stop("`coefficients` is read-only.", call. = FALSE)
       # A FAIRE : renvoyer les coefficients de la LDA (format à convenir)
       NULL
+    },
+
+    #' @field confusion Confusion matrix on the training data
+    #'   (rows: observed classes, columns: predicted classes; `NULL` before
+    #'   fitting).
+    confusion = function(value) {
+      if (!missing(value)) stop("`confusion` is read-only.", call. = FALSE)
+      private$.summary$confusion
+    },
+
+    #' @field accuracy Proportion of correctly classified training observations
+    #'   (resubstitution rate, optimistic; `NULL` before fitting).
+    accuracy = function(value) {
+      if (!missing(value)) stop("`accuracy` is read-only.", call. = FALSE)
+      private$.summary$accuracy
     }
   )
 )

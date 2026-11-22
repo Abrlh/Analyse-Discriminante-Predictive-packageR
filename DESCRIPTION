@@ -11,5 +11,8 @@ Roxygen: list(markdown = TRUE)
 Imports: 
     R6
 Suggests: 
+    DT,
+    readxl,
+    shiny,
     testthat (>= 3.0.0)
 Config/testthat/edition: 3

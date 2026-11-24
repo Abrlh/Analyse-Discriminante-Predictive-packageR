@@ -19,9 +19,9 @@ test_that("methods behave correctly before fit", {
   expect_null(m$coefficients)
 })
 
-test_that("fit stops at the LDA step while LDA_Classic is not implemented", {
+test_that("fit gives a clear error while the LDA classes are not available", {
   m <- LDAClassifier$new()
-  expect_error(m$fit(iris[, 1:4], iris$Species), "not implemented")
+  expect_error(m$fit(iris[, 1:4], iris$Species), "not available yet")
   expect_false(m$is_fitted)
 })
 

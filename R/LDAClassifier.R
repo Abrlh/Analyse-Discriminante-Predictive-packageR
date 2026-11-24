@@ -65,15 +65,12 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       # 5. Sélection de variables (optionnelle)
       vars <- colnames(Z)
       if (private$.selection != "none") {
-        private$.selector <- switch(private$.selection,
-          forward  = SelectionForward$new(),
-          backward = SelectionBackward$new(),
-          stepwise = SelectionStepwise$new()
-        )
+        private$.selector <- private$new_selector()
         vars <- private$.selector$select(Z, y)
         if (length(vars) == 0) {
           stop("No variable was selected.", call. = FALSE)
         }
+        
       }
 
       # 6. Assez d'individus pour la LDA classique
@@ -82,10 +79,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       }
 
       # 7. Entraînement de la LDA choisie
-      private$.lda <- switch(private$.method,
-        classic = LDA_Classic$new(),
-        highdim = LDA_HighDim$new()
-      )
+      private$.lda <- private$new_lda()
       private$.lda$fit(Z[, vars, drop = FALSE], y)
 
       # 8. Mémorisation des informations du modèle
@@ -224,6 +218,31 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       prep <- private$.data$transform(X)
       prep$Z <- prep$Z[, private$.selected_vars, drop = FALSE]
       prep
+    },
+    # Crée l'objet LDA correspondant à la méthode choisie.
+    # La classe est retrouvée par son nom : message clair si elle n'existe pas encore.
+    new_lda = function() {
+      cls <- switch(private$.method,
+        classic = "LDA_Classic",
+        highdim = "LDA_HighDim"
+      )
+      if (!exists(cls, mode = "environment")) {
+        stop("The class `", cls, "` is not available yet.", call. = FALSE)
+      }
+      get(cls, mode = "environment")$new()
+    },
+
+    # Crée l'objet de sélection correspondant à la stratégie choisie.
+    new_selector = function() {
+      cls <- switch(private$.selection,
+        forward  = "SelectionForward",
+        backward = "SelectionBackward",
+        stepwise = "SelectionStepwise"
+      )
+      if (!exists(cls, mode = "environment")) {
+        stop("The class `", cls, "` is not available yet.", call. = FALSE)
+      }
+      get(cls, mode = "environment")$new()
     }
   ),
 

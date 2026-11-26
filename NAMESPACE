@@ -2,4 +2,5 @@
 
 export(LDAClassifier)
 export(run_app)
+export(train_test_split)
 importFrom(R6,R6Class)

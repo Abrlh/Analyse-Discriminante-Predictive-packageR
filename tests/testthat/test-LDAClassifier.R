@@ -97,3 +97,17 @@ test_that("fit computes the confusion matrix and accuracy, score and summary wor
     expect_error(m$accuracy <- 1, "read-only")
   })
 })
+
+test_that("evaluate returns the confusion matrix and accuracy on new data", {
+  with_fake_lda({
+    set.seed(1)
+    test_idx <- sample(150, 45)
+    m <- LDAClassifier$new()$fit(iris[-test_idx, 1:4], iris$Species[-test_idx])
+    ev <- m$evaluate(iris[test_idx, ], iris$Species[test_idx])
+
+    expect_equal(dim(ev$confusion), c(3, 3))
+    expect_equal(sum(ev$confusion), 45)
+    expect_equal(ev$accuracy, sum(diag(ev$confusion)) / 45)
+    expect_equal(m$score(iris[test_idx, ], iris$Species[test_idx]), ev$accuracy)
+  })
+})

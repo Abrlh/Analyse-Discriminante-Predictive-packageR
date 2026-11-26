@@ -143,6 +143,31 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       P
     },
 
+    # Methode evaluate ***
+
+    #' @description Evaluate the model on new data (e.g. a test sample).
+    #' @param X Data frame containing the variables used for fitting.
+    #' @param y Factor of the true classes, of length `nrow(X)`.
+    #' @return A list with `confusion` (confusion matrix, rows: observed
+    #'   classes, columns: predicted classes) and `accuracy` (proportion of
+    #'   correctly classified observations). Rows that cannot be predicted
+    #'   (missing values) are ignored.
+    evaluate = function(X, y) {
+      check_fitted(private$.is_fitted)
+      check_X(X)
+      check_y(y, X)
+      pred <- self$predict(X)
+
+      # On ignore les lignes non prédites (valeurs manquantes)
+      keep <- !is.na(pred)
+      truth <- factor(as.character(y[keep]), levels = private$.classes)
+      pred <- factor(as.character(pred[keep]), levels = private$.classes)
+
+      confusion <- table(Observed = truth, Predicted = pred)
+      list(confusion = confusion,
+           accuracy = sum(diag(confusion)) / sum(confusion))
+    },
+
     # Methode score ***
 
     #' @description Proportion of correctly classified observations on new
@@ -152,11 +177,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     #' @return A number between 0 and 1. Rows that cannot be predicted
     #'   (missing values) are ignored.
     score = function(X, y) {
-      check_fitted(private$.is_fitted)
-      check_X(X)
-      check_y(y, X)
-      pred <- self$predict(X)
-      mean(as.character(pred) == as.character(y), na.rm = TRUE)
+      self$evaluate(X, y)$accuracy
     },
 
     # Methode print ***
@@ -302,3 +323,83 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     }
   )
 )
+
+# ---------------------------------------------------------------------------
+# Découpage apprentissage / test
+# ---------------------------------------------------------------------------
+
+#' Split data into a training sample and a test sample
+#'
+#' Randomly splits a data set into a training sample, used to fit the model,
+#' and a test sample, used to evaluate it on observations it has never seen
+#' (see [LDAClassifier]'s `$evaluate()` method). By default the split is
+#' stratified: each class of `y` keeps the same proportion in both samples.
+#'
+#' @details
+#' The accuracy computed on the training data (resubstitution rate) is
+#' optimistic, since the model has already seen these observations. The
+#' accuracy on a test sample is a more honest estimate of the performance on
+#' new observations.
+#'
+#' When `seed` is given, [set.seed()] is called, so the split is reproducible
+#' and the global random number generator is modified.
+#'
+#' @param X Data frame of predictors.
+#' @param y Factor giving the class of each row of `X`.
+#' @param test_size Proportion of observations in the test sample, strictly
+#'   between 0 and 1. Default `0.3`.
+#' @param seed Optional integer seed, for a reproducible split. `NULL`
+#'   (default) uses the current state of the random number generator.
+#' @param stratify Logical. If `TRUE` (default), observations are sampled
+#'   separately within each class, so that both samples keep the class
+#'   proportions of `y`.
+#' @return A list with the elements `X_train`, `X_test` (data frames),
+#'   `y_train`, `y_test` (factors) and `test_index` (row numbers of the test
+#'   observations in `X`).
+#' @examples
+#' split <- train_test_split(iris[, 1:4], iris$Species, test_size = 0.3,
+#'                           seed = 123)
+#' nrow(split$X_train)
+#' table(split$y_test)
+#' @export
+train_test_split <- function(X, y, test_size = 0.3, seed = NULL, stratify = TRUE) {
+
+  # Vérification des entrées
+  check_X(X)
+  check_y(y, X)
+  if (!is.numeric(test_size) || length(test_size) != 1 ||
+      test_size <= 0 || test_size >= 1) {
+    stop("`test_size` must be a single number strictly between 0 and 1.",
+         call. = FALSE)
+  }
+
+  # Graine aléatoire (reproductibilité)
+  if (!is.null(seed)) set.seed(seed)
+
+  n <- nrow(X)
+  if (isTRUE(stratify)) {
+    # Tirage séparé dans chaque classe : mêmes proportions dans les deux échantillons
+    groups <- split(seq_len(n), y)
+    test_index <- unlist(lapply(groups, function(i) {
+      i[sample.int(length(i), round(length(i) * test_size))]
+    }), use.names = FALSE)
+  } else {
+    test_index <- sample.int(n, round(n * test_size))
+  }
+  test_index <- sort(test_index)
+
+  # Les deux échantillons doivent contenir au moins un individu
+  if (length(test_index) == 0 || length(test_index) == n) {
+    stop("The test sample would be empty or contain all observations. ",
+         "Change `test_size`.", call. = FALSE)
+  }
+
+  train_index <- setdiff(seq_len(n), test_index)
+  list(
+    X_train = X[train_index, , drop = FALSE],
+    X_test = X[test_index, , drop = FALSE],
+    y_train = y[train_index],
+    y_test = y[test_index],
+    test_index = test_index
+  )
+}

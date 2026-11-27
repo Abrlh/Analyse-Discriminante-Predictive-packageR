@@ -664,6 +664,13 @@ ui <- page_navbar(
       card_body(uiOutput("test_ui"))
     ),
 
+    # Étapes de la sélection de variables
+    card(
+      card_header(class = "d-flex align-items-center gap-2",
+                  bsicons::bs_icon("list-ol"), "Étapes de la sélection"),
+      card_body(uiOutput("selection_steps"))
+    ),
+
     # Coefficients et variables illustratives
     layout_columns(
       col_widths = c(6, 6),
@@ -972,10 +979,7 @@ server <- function(input, output, session) {
     X_train <- X[train_rows, , drop = FALSE]
     y_train <- y[train_rows]
 
-    # A FAIRE : transmettre input$alpha_in et input$alpha_out quand les classes
-    # de sélection auront fixé leurs paramètres
-    m <- LDAClassifier$new(method = input$method, selection = input$selection)
-
+    m <- LDAClassifier$new(method = input$method, selection = input$selection, slentry = input$alpha_in, slstay = input$alpha_out)
     res <- withProgress(message = "Entraînement du modèle en cours...", value = 0.5, {
       safe_run(m$fit(X_train, y_train), "Erreur lors de l'entraînement du modèle :")
     })
@@ -1195,6 +1199,36 @@ server <- function(input, output, session) {
   output$confusion_note <- renderText({
     cm <- analysis()$model$confusion
     sprintf("%d individus sur %d bien classés.", sum(diag(cm)), sum(cm))
+  })
+
+    # Historique de la sélection : une ligne par étape
+  output$selection_steps <- renderUI({
+    a <- analysis()
+    # Cas 1 : aucune sélection demandée
+    if (a$model$selection == "none") {
+      return(p(class = "text-body-secondary mb-0", "Aucune sélection de variables demandée : toutes les variables explicatives sont utilisées."))
+    }
+    # Cas 2 : sélection faite, mais aucune étape (rien retiré en backward)
+    h <- a$model$selection_history
+    if (is.null(h) || nrow(h) == 0) {
+      return(p(class = "text-body-secondary mb-0",
+      sprintf("La sélection n'a retiré aucune variable : toutes restent significatives au seuil de maintien (%s).", a$settings$alpha_out)))
+    }
+
+    # Présentation en français
+    tab <- data.frame(
+      "Étape"           = h$step,
+      "Action"          = ifelse(h$action == "add", "Entrée", "Sortie"),
+      "Variable"        = h$variable,
+      "Lambda de Wilks" = round(h$lambda, 4),
+      "F"               = round(h$F, 2),
+      "p-value"         = ifelse(h$p_value < 1e-4, "< 0,0001", formatC(h$p_value, format = "f", digits = 4)),
+      check.names = FALSE
+    )
+    tagList(
+      renderTable(tab),
+      helpText("Lambda de Wilks du modèle après chaque étape : plus il est proche de 0, mieux les classes sont séparées.")
+    )
   })
 
   # Coefficients : s'affichent automatiquement dès que la LDA les fournit

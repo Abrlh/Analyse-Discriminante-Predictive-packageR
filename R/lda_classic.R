@@ -32,8 +32,8 @@ LDA_classic <- R6Class(
       )
     },
 
-    #'  Classement d'un individu omega
-    #'  @return la classe qui a le meilleur score
+    #  Classement d'un individu omega
+    #  @return la classe qui a le meilleur score
     classer = function(x) {
       scores <- sapply(private$classes, function(k) private$d(k, x))
       # softmax (on retire le max pour éviter un dépassement numérique)

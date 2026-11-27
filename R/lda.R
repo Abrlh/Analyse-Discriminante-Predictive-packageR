@@ -52,7 +52,7 @@ LDA <- R6Class(
     #' @return `matrix`
     predict = function(omega) {
       stop("Méthode abstraite")
-    },
+    }
   ),
   active = list(
     #' @field nb_classes Nombre de classes (lecture seule).

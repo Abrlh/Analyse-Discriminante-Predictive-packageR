@@ -19,10 +19,24 @@ test_that("methods behave correctly before fit", {
   expect_null(m$coefficients)
 })
 
-test_that("fit gives a clear error while the LDA classes are not available", {
+test_that("the real LDA gives correct results on iris", {
   m <- LDAClassifier$new()
-  expect_error(m$fit(iris[, 1:4], iris$Species), "not available yet")
-  expect_false(m$is_fitted)
+  m$fit(iris[, 1:4], iris$Species)
+  expect_true(m$is_fitted)
+
+  # Une LDA sur iris classe correctement 98 % des individus
+  expect_equal(m$score(iris[, 1:4], iris$Species), 0.98)
+
+  # Probabilités : une ligne par individu, chaque ligne somme à 1
+  P <- m$predict_proba(iris[1:10, 1:4])
+  expect_equal(dim(P), c(10, 3))
+  expect_equal(unname(rowSums(P)), rep(1, 10))
+})
+
+test_that("selection thresholds are passed to the selection", {
+  strict <- LDAClassifier$new(selection = "forward", slentry = 1e-7)
+  strict$fit(iris[, 1:4], iris$Species)
+  expect_lt(length(strict$selected_vars), 4)
 })
 
 test_that("fit, predict and predict_proba orchestrate the pipeline", {
@@ -110,4 +124,15 @@ test_that("evaluate returns the confusion matrix and accuracy on new data", {
     expect_equal(ev$accuracy, sum(diag(ev$confusion)) / 45)
     expect_equal(m$score(iris[test_idx, ], iris$Species[test_idx]), ev$accuracy)
   })
+})
+
+test_that("a categorical variable is kept as a whole after selection", {
+  df <- iris
+  df$taille <- cut(df$Sepal.Width, 3, labels = c("petite", "moyenne", "grande"))
+  m <- LDAClassifier$new(selection = "stepwise")
+  m$fit(df[, c(1, 3, 4, 6)], df$Species)
+
+  priv <- m$.__enclos_env__$private
+  out <- priv$complete_dummies(c("Petal.Length", "taille_grande"))
+  expect_setequal(out, c("Petal.Length", "taille_moyenne", "taille_grande"))
 })

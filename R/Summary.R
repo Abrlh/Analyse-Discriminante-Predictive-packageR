@@ -22,9 +22,8 @@ Summary <- R6::R6Class("Summary",
       # Évaluation globale : qualité du classement (apprentissage)
       private$.confusion <- table(Observed = y, Predicted = pred)
       private$.accuracy <- mean(pred == y)
-
-      # A FAIRE : Wilks, F de Rao, F partiels et coefficients, calculés à
-      # partir de Z et de lda. On ne stocke que les résultats, jamais Z.
+      # Coefficients des fonctions de classement, fournis par la LDA
+      private$.coefficients <- lda$coefficients
     },
 
     #' @description Print the detailed summary.
@@ -40,14 +39,22 @@ Summary <- R6::R6Class("Summary",
       cat("Confusion matrix (rows: observed, columns: predicted)\n")
       print(private$.confusion)
 
-      cat("\nWilks' lambda, partial F tests and coefficients: not available yet.\n")
+      cat("\nClassification functions (one column per class)\n")
+      if (is.null(private$.coefficients)) {
+        cat("  Not available.\n")
+      } else {
+        print(round(private$.coefficients, 4))
+      }
+
+      cat("\nWilks' lambda and partial F tests: not available yet.\n")
       invisible(self)
     }
   ),
 
   private = list(
     .confusion = NULL,   # matrice de confusion
-    .accuracy = NULL     # taux de bonne classification
+    .accuracy = NULL,     # taux de bonne classification
+    .coefficients = NULL # coefficients des fonctions de classement
   ),
 
   active = list(
@@ -62,6 +69,14 @@ Summary <- R6::R6Class("Summary",
     accuracy = function(value) {
       if (!missing(value)) stop("`accuracy` is read-only.", call. = FALSE)
       private$.accuracy
+    },
+
+    #' @field coefficients Coefficients of the classification functions
+    #'   (one column per class, first row = intercept).
+    coefficients = function(value) {
+      if (!missing(value)) stop("`coefficients` is read-only.", call. = FALSE)
+      private$.coefficients
     }
+
   )
 )

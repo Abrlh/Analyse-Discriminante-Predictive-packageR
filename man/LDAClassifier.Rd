@@ -24,10 +24,13 @@ Rows with missing values are removed before fitting.
 
     \item{\code{selected_vars}}{Encoded variables used by the model.}
 
+    \item{\code{selection_history}}{Step-by-step history of the variable
+selection (data frame), or \code{NULL} when no selection was used.}
+
     \item{\code{classes}}{Classes of the target variable.}
 
     \item{\code{coefficients}}{Coefficients of the classification functions
-(\code{NULL} until provided by the LDA classes).}
+(one column per class, first row = intercept; \code{NULL} before fitting).}
 
     \item{\code{confusion}}{Confusion matrix on the training data
 (rows: observed classes, columns: predicted classes; \code{NULL} before
@@ -61,7 +64,9 @@ fitting).}
     \if{html}{\out{<div class="r">}}
     \preformatted{LDAClassifier$new(
   method = c("classic", "highdim"),
-  selection = c("none", "forward", "backward", "stepwise")
+  selection = c("none", "forward", "backward", "stepwise"),
+  slentry = 0.15,
+  slstay = 0.15
 )}
     \if{html}{\out{</div>}}
   }
@@ -72,6 +77,10 @@ fitting).}
 (for many or collinear variables).}
       \item{\code{selection}}{Variable selection strategy: \code{"none"} (default),
 \code{"forward"}, \code{"backward"} or \code{"stepwise"}.}
+      \item{\code{slentry}}{Significance level to enter a variable (forward and
+stepwise selection). Default 0.15.}
+      \item{\code{slstay}}{Significance level to stay in the model (backward and
+stepwise selection). Default 0.15.}
     }
     \if{html}{\out{</div>}}
   }

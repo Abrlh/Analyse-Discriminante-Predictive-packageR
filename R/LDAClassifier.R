@@ -22,12 +22,20 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     #'   (for many or collinear variables).
     #' @param selection Variable selection strategy: `"none"` (default),
     #'   `"forward"`, `"backward"` or `"stepwise"`.
+    #' @param slentry Significance level to enter a variable (forward and
+    #'   stepwise selection). Default 0.15.
+    #' @param slstay Significance level to stay in the model (backward and
+    #'   stepwise selection). Default 0.15.
     #' @return A new `LDAClassifier` object.
     initialize = function(method = c("classic", "highdim"),
-                          selection = c("none", "forward", "backward", "stepwise")) {
+                          selection = c("none", "forward", "backward", "stepwise"),
+                          slentry = 0.15, slstay = 0.15) {
       # Vérifie que la valeur fait partie des choix autorisés
       private$.method <- match.arg(method)
       private$.selection <- match.arg(selection)
+      # Seuils de la sélection (vérifiés par la classe Selection)
+      private$.slentry <- slentry
+      private$.slstay <- slstay
     },
 
     # Methode fit ***
@@ -66,7 +74,10 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       vars <- colnames(Z)
       if (private$.selection != "none") {
         private$.selector <- private$new_selector()
-        vars <- private$.selector$select(Z, y)
+        private$.selector$fit(Z, y)
+        vars <- private$.selector$selected
+        # Stratégie catégorielle : variable gardée en entier si une indicatrice est retenue
+        vars <- private$complete_dummies(vars)
         if (length(vars) == 0) {
           stop("No variable was selected.", call. = FALSE)
         }
@@ -230,6 +241,8 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     .class_counts = NULL,   # effectifs par classe
     .summary = NULL,        # objet Summary (créé à la fin du fit)
     .is_fitted = FALSE,
+    .slentry = NULL,        # seuil d'entrée de la sélection
+    .slstay = NULL,         # seuil de maintien de la sélection
 
     # Code commun à predict() et predict_proba() :
     # vérifie, code les nouvelles données et garde les colonnes du modèle
@@ -240,11 +253,28 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       prep$Z <- prep$Z[, private$.selected_vars, drop = FALSE]
       prep
     },
+
+    # Stratégie pour les variables catégorielles : une variable est gardée
+    # en entier dès qu'au moins une de ses indicatrices a été sélectionnée.
+    complete_dummies = function(vars) {
+      kinds <- private$.data$kinds
+      lev <- private$.data$levels
+      for (v in names(kinds)[kinds == "categorical"]) {
+        dummies <- paste0(v, "_", lev[[v]][-1])   # indicatrices de v (sans la référence)
+        if (any(dummies %in% vars)) {
+          vars <- union(vars, dummies)            # on ajoute celles qui manquent
+        }
+      }
+      # Remet les colonnes dans l'ordre de la matrice codée
+      intersect(private$.data$feature_names, vars)
+    },
+
     # Crée l'objet LDA correspondant à la méthode choisie.
     # La classe est retrouvée par son nom : message clair si elle n'existe pas encore.
+
     new_lda = function() {
       cls <- switch(private$.method,
-        classic = "LDA_Classic",
+        classic = "LDA_ClassicAdapter",   # provisoire, en attendant LDA_Classic
         highdim = "LDA_HighDim"
       )
       if (!exists(cls, mode = "environment")) {
@@ -263,7 +293,8 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       if (!exists(cls, mode = "environment")) {
         stop("The class `", cls, "` is not available yet.", call. = FALSE)
       }
-      get(cls, mode = "environment")$new()
+
+      get(cls, mode = "environment")$new(slentry = private$.slentry, slstay = private$.slstay)
     }
   ),
 
@@ -293,6 +324,14 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       private$.selected_vars
     },
 
+    #' @field selection_history Step-by-step history of the variable
+    #'   selection (data frame), or `NULL` when no selection was used.
+    selection_history = function(value) {
+      if (!missing(value)) stop("`selection_history` is read-only.", call. = FALSE)
+      if (is.null(private$.selector)) return(NULL)
+      private$.selector$history
+    },
+
     #' @field classes Classes of the target variable.
     classes = function(value) {
       if (!missing(value)) stop("`classes` is read-only.", call. = FALSE)
@@ -300,11 +339,11 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     },
 
     #' @field coefficients Coefficients of the classification functions
-    #'   (`NULL` until provided by the LDA classes).
+    #'   (one column per class, first row = intercept; `NULL` before fitting).
     coefficients = function(value) {
       if (!missing(value)) stop("`coefficients` is read-only.", call. = FALSE)
-      # A FAIRE : renvoyer les coefficients de la LDA (format à convenir)
-      NULL
+      if (is.null(private$.summary)) return(NULL)   # pas encore entraîné
+      private$.summary$coefficients
     },
 
     #' @field confusion Confusion matrix on the training data

@@ -530,6 +530,20 @@ ui <- page_navbar(
                         choices = c("Classique" = "classic",
                                     "Grande dimension" = "highdim"),
                         width = "100%"),
+
+            # Shrinkage : seulement pour la LDA grande dimension
+            conditionalPanel(
+              "input.method == 'highdim'",
+              checkboxInput("shrink_auto",
+                label_info("Estimer automatiquement le shrinkage",
+                  "La matrice de covariance est rapprochée de sa diagonale pour la stabiliser. Par défaut, l'intensité λ est estimée à partir des données (Schäfer et Strimmer, 2005)."),
+                value = TRUE),
+              conditionalPanel(
+                "!input.shrink_auto",
+                sliderInput("shrinkage", "Intensité du shrinkage (λ)",
+                            min =0.01, max = 1, value = 0.1, step = 0.01, width = "100%")
+              )
+            ),
             selectInput("selection", label_info("Sélection de variables",
                           "Ascendante : ajoute une à une les variables les plus significatives. Descendante : part de toutes les variables et retire les moins significatives. Pas à pas : ascendante, avec possibilité de retirer une variable devenue non significative."),
                         choices = c("Aucune" = "none",
@@ -1001,7 +1015,10 @@ server <- function(input, output, session) {
     X_train <- X[train_rows, , drop = FALSE]
     y_train <- y[train_rows]
 
-    m <- LDAClassifier$new(method = input$method, selection = input$selection, slentry = input$alpha_in, slstay = input$alpha_out, max_iter = input$max_iter)
+    m <- LDAClassifier$new(method = input$method, selection = input$selection,
+                           slentry = input$alpha_in, slstay = input$alpha_out,
+                           max_iter = input$max_iter,
+                           shrinkage = if (isTRUE(input$shrink_auto)) NULL else input$shrinkage)
     res <- withProgress(message = "Entraînement du modèle en cours...", value = 0.5, {
       safe_run(m$fit(X_train, y_train), "Erreur lors de l'entraînement du modèle :")
     })
@@ -1073,7 +1090,9 @@ server <- function(input, output, session) {
       target = input$target, explanatory = input$explanatory,
       illustrative = input$illustrative, method = input$method,
       selection = input$selection, alpha_in = input$alpha_in,
-      alpha_out = input$alpha_out, use_test = input$use_test,
+      alpha_out = input$alpha_out, max_iter = input$max_iter,
+      shrink_auto = input$shrink_auto, shrinkage = input$shrinkage,
+      use_test = input$use_test,
       test_prop = input$test_prop, seed = input$seed
     )
   })
@@ -1124,7 +1143,12 @@ server <- function(input, output, session) {
         sprintf("Variables : %d d'origine, %d colonne(s) après codage",
                 length(a$vars), length(m$selected_vars)),
         pills(m$selected_vars, max_n = 12)),
-      recap_row("cpu", "Méthode", method_labels[[st$method]]),
+      recap_row("cpu", "Méthode",
+        tagList(method_labels[[st$method]],
+                if (!is.null(m$shrinkage))
+                  div(class = "small fw-normal text-body-secondary",
+                      sprintf("Intensité du shrinkage λ = %.3f%s", m$shrinkage,
+                              if (isTRUE(st$shrink_auto)) " (estimée)" else " (choisie)")))),
       recap_row("funnel", "Sélection de variables",
         tagList(selection_labels[[st$selection]],
                 if (!is.null(thresholds))

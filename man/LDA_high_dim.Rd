@@ -20,18 +20,38 @@ W is shrunk toward its diagonal (shrinkage of Schäfer and Strimmer, 2005).
 \section{Methods}{
 \subsection{Public methods}{
   \itemize{
+    \item \href{#method-LDA_high_dim-initialize}{\code{LDA_high_dim$new()}}
     \item \href{#method-LDA_high_dim-clone}{\code{LDA_high_dim$clone()}}
   }
 }
 \if{html}{\out{<details open><summary>Inherited methods</summary>
 <ul>
   <li><span class="pkg-link" data-pkg="ldapred" data-topic="LDA" data-id="fit"><a href='../../ldapred/html/LDA.html#method-LDA-fit'><code>LDA$fit()</code></a></span></li>
-  <li><span class="pkg-link" data-pkg="ldapred" data-topic="LDA" data-id="initialize"><a href='../../ldapred/html/LDA.html#method-LDA-initialize'><code>LDA$initialize()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="ldapred" data-topic="LDA" data-id="predict"><a href='../../ldapred/html/LDA.html#method-LDA-predict'><code>LDA$predict()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="ldapred" data-topic="LDA" data-id="predict_proba"><a href='../../ldapred/html/LDA.html#method-LDA-predict_proba'><code>LDA$predict_proba()</code></a></span></li>
   <li><span class="pkg-link" data-pkg="ldapred" data-topic="LDA" data-id="scores"><a href='../../ldapred/html/LDA.html#method-LDA-scores'><code>LDA$scores()</code></a></span></li>
 </ul>
 </details>}}
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LDA_high_dim-initialize"></a>}}
+\if{latex}{\out{\hypertarget{method-LDA_high_dim-initialize}{}}}
+\subsection{\code{LDA_high_dim$new()}}{
+  Create a high-dimensional LDA.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LDA_high_dim$new(shrinkage = NULL)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{shrinkage}}{Shrinkage intensity in [0, 1], or \code{NULL}
+(default) to estimate it (Schäfer and Strimmer, 2005).}
+    }
+    \if{html}{\out{</div>}}
+  }
+}
+
 \if{html}{\out{<hr>}}
 \if{html}{\out{<a id="method-LDA_high_dim-clone"></a>}}
 \if{latex}{\out{\hypertarget{method-LDA_high_dim-clone}{}}}

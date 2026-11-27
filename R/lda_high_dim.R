@@ -7,12 +7,26 @@
 LDA_high_dim <- R6Class(
   "LDA_high_dim",
   inherit = LDA,
+
+  # (1) La porte d'entrée : l'utilisateur peut choisir lambda
+  public = list(
+    #' @description Create a high-dimensional LDA.
+    #' @param shrinkage Shrinkage intensity in \[0, 1\], or `NULL`
+    #'   (default) to estimate it (Schäfer and Strimmer, 2005).
+    initialize = function(shrinkage = NULL) {
+      private$shrinkage <- shrinkage
+    }
+  ),
+
   active = list(
     #' @field shrinkage_intensity Shrinkage intensity lambda (read-only).
     shrinkage_intensity = function() private$lambda
   ),
+
   private = list(
-    # lambda: Shrinkage intensity, between 0 and 1.
+    # (2) La case où on range le choix de l'utilisateur (NULL = automatique)
+    shrinkage = NULL,
+    # lambda: Shrinkage intensity actually used, between 0 and 1.
     lambda = NULL,
 
     # Estimate W shrunk toward its diagonal.
@@ -37,7 +51,13 @@ LDA_high_dim <- R6Class(
 
       off_diag <- row(W) != col(W)
       denom <- sum(rho[off_diag]^2)
-      lambda <- if (denom == 0) 1 else sum(var_rho[off_diag]) / denom
+
+      # (3) La décision : valeur choisie par l'utilisateur, sinon estimation
+      if (!is.null(private$shrinkage)) {
+        lambda <- private$shrinkage
+      } else {
+        lambda <- if (denom == 0) 1 else sum(var_rho[off_diag]) / denom
+      }
       private$lambda <- max(0, min(1, lambda))
 
       W_lambda <- (1 - private$lambda) * W

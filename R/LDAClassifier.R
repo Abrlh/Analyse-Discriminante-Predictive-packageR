@@ -28,10 +28,13 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     #'   stepwise selection). Default 0.15.
     #' @param max_iter Maximum number of iterations of the variable selection
     #'   (positive integer, default 100). The selection stops if it reaches it.
+    #' @param shrinkage Shrinkage intensity of the high-dimensional LDA, in
+    #'   \[0, 1\], or `NULL` (default) to estimate it. Ignored when
+    #'   `method = "classic"`.
     #' @return A new `LDAClassifier` object.
     initialize = function(method = c("classic", "highdim"),
                           selection = c("none", "forward", "backward", "stepwise"),
-                          slentry = 0.15, slstay = 0.15, max_iter = 100){
+                          slentry = 0.15, slstay = 0.15, max_iter = 100, shrinkage = NULL){
       # Vérifie que la valeur fait partie des choix autorisés
       private$.method <- match.arg(method)
       private$.selection <- match.arg(selection)
@@ -39,6 +42,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       private$.slentry <- slentry
       private$.slstay <- slstay
       private$.max_iter <- max_iter
+      private$.shrinkage <- shrinkage
     },
 
     # Methode fit ***
@@ -247,6 +251,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     .slentry = NULL,        # seuil d'entrée de la sélection
     .slstay = NULL,         # seuil de maintien de la sélection
     .max_iter = NULL,     # nombre maximal d'itérations de la sélection
+    .shrinkage = NULL,      # intensité du shrinkage (LDA grande dimension)
 
     # Code commun à predict() et predict_proba() :
     # vérifie, code les nouvelles données et garde les colonnes du modèle
@@ -284,7 +289,15 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       if (!exists(cls, mode = "environment")) {
         stop("The class `", cls, "` is not available yet.", call. = FALSE)
       }
-      get(cls, mode = "environment")$new()
+
+      lda_class <- get(cls, mode = "environment")
+      # Le shrinkage ne concerne que la LDA grande dimension
+      if (private$.method == "highdim") {
+        lda_class$new(shrinkage = private$.shrinkage)
+      } else {
+        lda_class$new()
+      }
+      
     },
 
     # Crée l'objet de sélection correspondant à la stratégie choisie.
@@ -349,6 +362,14 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       if (!missing(value)) stop("`coefficients` is read-only.", call. = FALSE)
       if (is.null(private$.summary)) return(NULL)   # pas encore entraîné
       private$.summary$coefficients
+    },
+
+    #' @field shrinkage Shrinkage intensity used by the high-dimensional LDA
+    #'   (`NULL` for the classic LDA or before fitting).
+    shrinkage = function(value) {
+      if (!missing(value)) stop("`shrinkage` is read-only.", call. = FALSE)
+      if (is.null(private$.lda) || private$.method != "highdim") return(NULL)
+      private$.lda$shrinkage_intensity
     },
 
     #' @field confusion Confusion matrix on the training data

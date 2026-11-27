@@ -32,6 +32,9 @@ selection (data frame), or \code{NULL} when no selection was used.}
     \item{\code{coefficients}}{Coefficients of the classification functions
 (one column per class, first row = intercept; \code{NULL} before fitting).}
 
+    \item{\code{shrinkage}}{Shrinkage intensity used by the high-dimensional LDA
+(\code{NULL} for the classic LDA or before fitting).}
+
     \item{\code{confusion}}{Confusion matrix on the training data
 (rows: observed classes, columns: predicted classes; \code{NULL} before
 fitting).}
@@ -73,7 +76,8 @@ fitting).}
   selection = c("none", "forward", "backward", "stepwise"),
   slentry = 0.15,
   slstay = 0.15,
-  max_iter = 100
+  max_iter = 100,
+  shrinkage = NULL
 )}
     \if{html}{\out{</div>}}
   }
@@ -90,6 +94,9 @@ stepwise selection). Default 0.15.}
 stepwise selection). Default 0.15.}
       \item{\code{max_iter}}{Maximum number of iterations of the variable selection
 (positive integer, default 100). The selection stops if it reaches it.}
+      \item{\code{shrinkage}}{Shrinkage intensity of the high-dimensional LDA, in
+[0, 1], or \code{NULL} (default) to estimate it. Ignored when
+\code{method = "classic"}.}
     }
     \if{html}{\out{</div>}}
   }

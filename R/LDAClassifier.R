@@ -274,8 +274,8 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
 
     new_lda = function() {
       cls <- switch(private$.method,
-        classic = "LDA_ClassicAdapter",   # provisoire, en attendant LDA_Classic
-        highdim = "LDA_HighDim"
+        classic = "LDA_classic",  
+        highdim = "LDA_high_dim"
       )
       if (!exists(cls, mode = "environment")) {
         stop("The class `", cls, "` is not available yet.", call. = FALSE)

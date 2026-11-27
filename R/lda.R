@@ -20,9 +20,11 @@ LDA <- R6Class(
       }
 
       # découpage stratifié : seuil % de chaque classe dans le train
-      idx <- unlist(lapply(split(seq_along(y), y), function(i) {
-        i[sample.int(length(i), round(length(i) * seuil))]
-      }))
+      idx <- unlist(lapply(
+        split(seq_along(y), y), function(i) {
+          i[sample.int(length(i), round(length(i) * seuil))]
+        }
+      ))
 
       private$X_train <- X[idx, , drop = FALSE]
       private$y_train <- y[idx]
@@ -52,7 +54,7 @@ LDA <- R6Class(
     #' @return `matrix`
     predict = function(omega) {
       stop("Méthode abstraite")
-    },
+    }
   ),
   active = list(
     #' @field nb_classes Nombre de classes (lecture seule).
@@ -72,7 +74,15 @@ LDA <- R6Class(
     #' @field moyennes_classes Moyennes par classe (lecture seule).
     moyennes_classes = function() private$mu_k,
     #' @field covariance_intra Matrice de covariance intra-classe W (lecture seule).
-    covariance_intra = function() private$W
+    covariance_intra = function() private$W,
+    #' @field donnees_X_train Variables explicatives d'apprentissage (lecture seule).
+    donnees_X_train = function() private$X_train,
+    #' @field donnees_y_train Classes d'apprentissage (lecture seule).
+    donnees_y_train = function() private$y_train,
+    #' @field donnees_X_test Variables explicatives de test (lecture seule).
+    donnees_X_test = function() private$X_test,
+    #' @field donnees_y_test Classes de test (lecture seule).
+    donnees_y_test = function() private$y_test
   ),
   private = list(
     #' @field X_train
@@ -105,7 +115,7 @@ LDA <- R6Class(
 
     #' @field W matrice de covariance W
     W = NULL,
-    #' @field W_1 Matrice de covariance W transposée
+    #' @field W_1 Matrice de covariance W inverse
     W_1 = NULL,
     estimer_W = function(X, y) stop("méthode abstraite")
   )

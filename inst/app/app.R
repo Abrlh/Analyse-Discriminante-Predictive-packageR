@@ -1253,7 +1253,10 @@ server <- function(input, output, session) {
   # Évaluation globale : lambda de Wilks + F de Rao
   output$wilks_ui <- renderUI({
     w <- analysis()$model$wilks
-    req(w)
+    if (is.null(w)) {
+      return(p(class = "text-body-secondary mb-0",
+               "Non disponible : le modèle a plus de variables que n - K (grande dimension), le lambda de Wilks n'est pas défini."))
+    }
     separe <- w$p_value < 0.05
     lignes <- list(
       c("Lambda de Wilks", formatC(w$lambda, format = "f", digits = 4)),
@@ -1277,7 +1280,10 @@ server <- function(input, output, session) {
   # Pertinence de chaque variable, en plus de toutes les autres
   output$var_tests_ui <- renderUI({
     vt <- analysis()$model$variable_tests
-    req(vt)
+    if (is.null(vt)) {
+      return(p(class = "text-body-secondary mb-0",
+               "Non disponible : le modèle a plus de variables que n - K (grande dimension), le lambda de Wilks n'est pas défini."))
+    }
     vt <- vt[order(vt$F, decreasing = TRUE), ]   # de la plus utile à la moins utile
     tab <- data.frame(
       "Variable"       = vt$variable,

@@ -69,22 +69,27 @@ Summary <- R6::R6Class("Summary",
 
       # Évaluation globale et pertinence des variables (lambda de Wilks).
       # W et T : matrices de dispersion intra-classe et totale.
-      WT <- calc_W_T(Z, y)
       vars <- colnames(Z)
       n <- nrow(Z)
       p <- length(vars)
       K <- nlevels(y)
 
-      # Test global : lambda de Wilks du modèle + F de Rao
-      private$.wilks <- wilks_test(wilks(WT$W, WT$T, vars), n, p, K)
+      # Les tests de Wilks demandent n - K >= p (W inversible). En grande
+      # dimension, ils ne sont pas calculés (NULL) plutôt que faux.
+      if (n - K >= p) {
+        WT <- calc_W_T(Z, y)
 
-      # Pertinence : ce que chaque variable apporte en plus de toutes les autres
-      tests <- lapply(vars, function(j) {
-        s <- partial_stats(WT$W, WT$T, setdiff(vars, j), j, n, K)
-        data.frame(variable = j, lambda_partial = s$lambda_p,
-                   R2_partial = 1 - s$lambda_p, F = s$F, p_value = s$p_value)
-      })
-      private$.variable_tests <- do.call(rbind, tests)
+        # Test global : lambda de Wilks du modèle + F de Rao
+        private$.wilks <- wilks_test(wilks(WT$W, WT$T, vars), n, p, K)
+
+        # Pertinence : ce que chaque variable apporte en plus de toutes les autres
+        tests <- lapply(vars, function(j) {
+          s <- partial_stats(WT$W, WT$T, setdiff(vars, j), j, n, K)
+          data.frame(variable = j, lambda_partial = s$lambda_p,
+                     R2_partial = 1 - s$lambda_p, F = s$F, p_value = s$p_value)
+        })
+        private$.variable_tests <- do.call(rbind, tests)
+      }
     },
 
     #' @description Print the detailed summary.
@@ -108,6 +113,11 @@ Summary <- R6::R6Class("Summary",
       }
 
       w <- private$.wilks
+      if (is.null(w)) {
+        cat("\nWilks' lambda and partial F tests: not available",
+            "(more variables than n - K, high-dimensional case).\n")
+        return(invisible(self))
+      }
       cat("\nGlobal test (H0: equal class means)\n")
       cat(sprintf("  Wilks' lambda : %.4f\n", w$lambda))
       cat(sprintf("  Rao's F       : %.2f  (df = %g, %g)\n", w$F, w$df1, w$df2))

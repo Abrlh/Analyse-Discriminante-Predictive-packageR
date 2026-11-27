@@ -2,75 +2,38 @@
 % Please edit documentation in R/lda.R
 \name{LDA}
 \alias{LDA}
-\title{LDA : Analyse discirminante linéaire prédictive}
+\title{LDA: predictive linear discriminant analysis}
 \description{
-Classe abstraite d'un LDA
-}
-\section{Public fields}{
-  \if{html}{\out{<div class="r6-fields">}}
-  \describe{
-    \item{\code{n}}{nombre d'individu dans le jeu d'apprentissage}
-
-    \item{\code{p}}{nombre de variables dans le jeu d'apprentissage}
-
-    \item{\code{K}}{nombre de classe}
-
-    \item{\code{classes}}{liste des classes}
-
-    \item{\code{n_k}}{matrice du nombre d'individu par classe}
-
-    \item{\code{pi_k}}{matrice de proportion observée de la classe y_k par variables}
-
-    \item{\code{mu_k}}{matrice de moyenne pour les individus correspondant à la classe y_k par variables}
-
-    \item{\code{d}}{Fonction de classement}
-
-    \item{\code{W}}{matrice de covariance W}
-
-    \item{\code{W_1}}{Matrice de covariance W transposée}
-  }
-  \if{html}{\out{</div>}}
+Abstract class of an LDA.
+Subclasses only define how W is estimated.
 }
 \section{Active bindings}{
   \if{html}{\out{<div class="r6-active-bindings">}}
   \describe{
-    \item{\code{nb_classes}}{Nombre de classes (lecture seule).}
+    \item{\code{n_classes}}{Number of classes (read-only).}
 
-    \item{\code{noms_classes}}{Noms des classes (lecture seule).}
+    \item{\code{class_names}}{Names of the classes (read-only).}
 
-    \item{\code{noms_variables}}{Noms des variables explicatives (lecture seule).}
+    \item{\code{variable_names}}{Names of the explanatory variables (read-only).}
 
-    \item{\code{nb_individus}}{Nombre d'individus d'apprentissage (lecture seule).}
+    \item{\code{n_individuals}}{Number of training individuals (read-only).}
 
-    \item{\code{nb_variables}}{Nombre de variables (lecture seule).}
+    \item{\code{n_variables}}{Number of variables (read-only).}
 
-    \item{\code{effectifs_classes}}{Effectifs par classe (lecture seule).}
+    \item{\code{class_sizes}}{Size of each class (read-only).}
 
-    \item{\code{proportions_classes}}{Proportions des classes (lecture seule).}
+    \item{\code{class_proportions}}{Proportion of each class (read-only).}
 
-    \item{\code{moyennes_classes}}{Moyennes par classe (lecture seule).}
+    \item{\code{class_means}}{Mean of each class (read-only).}
 
-    \item{\code{covariance_intra}}{Matrice de covariance intra-classe W (lecture seule).}
+    \item{\code{within_covariance}}{Within-class covariance matrix W (read-only).}
 
-    \item{\code{n}}{nombre d'individu dans le jeu d'apprentissage}
+    \item{\code{data_X}}{Training explanatory variables (read-only).}
 
-    \item{\code{p}}{nombre de variables dans le jeu d'apprentissage}
+    \item{\code{data_y}}{Training classes (read-only).}
 
-    \item{\code{K}}{nombre de classe}
-
-    \item{\code{classes}}{liste des classes}
-
-    \item{\code{n_k}}{matrice du nombre d'individu par classe}
-
-    \item{\code{pi_k}}{matrice de proportion observée de la classe y_k par variables}
-
-    \item{\code{mu_k}}{matrice de moyenne pour les individus correspondant à la classe y_k par variables}
-
-    \item{\code{d}}{Fonction de classement}
-
-    \item{\code{W}}{matrice de covariance W}
-
-    \item{\code{W_1}}{Matrice de covariance W transposée}
+    \item{\code{coefficients}}{Coefficients of the classification functions (read-only).
+A matrix (p + 1) x K: the intercept, then one coefficient per variable.}
   }
   \if{html}{\out{</div>}}
 }
@@ -80,6 +43,8 @@ Classe abstraite d'un LDA
     \item \href{#method-LDA-initialize}{\code{LDA$new()}}
     \item \href{#method-LDA-fit}{\code{LDA$fit()}}
     \item \href{#method-LDA-predict}{\code{LDA$predict()}}
+    \item \href{#method-LDA-predict_proba}{\code{LDA$predict_proba()}}
+    \item \href{#method-LDA-scores}{\code{LDA$scores()}}
     \item \href{#method-LDA-clone}{\code{LDA$clone()}}
   }
 }
@@ -87,6 +52,7 @@ Classe abstraite d'un LDA
 \if{html}{\out{<a id="method-LDA-initialize"></a>}}
 \if{latex}{\out{\hypertarget{method-LDA-initialize}{}}}
 \subsection{\code{LDA$new()}}{
+  Abstract class: cannot be created directly.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
     \preformatted{LDA$new()}
@@ -98,20 +64,22 @@ Classe abstraite d'un LDA
 \if{html}{\out{<a id="method-LDA-fit"></a>}}
 \if{latex}{\out{\hypertarget{method-LDA-fit}{}}}
 \subsection{\code{LDA$fit()}}{
-  Calibrage de la classe et découpage pour les observations X et y
+  Fit the model on the observations X and y.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{LDA$fit(X, y, seuil = 0.7, seed = NULL)}
+    \preformatted{LDA$fit(X, y)}
     \if{html}{\out{</div>}}
   }
   \subsection{Arguments}{
     \if{html}{\out{<div class="arguments">}}
     \describe{
-      \item{\code{X}}{matrix}
-      \item{\code{y}}{factor}
-      \item{\code{seuil}}{proportion de train}
+      \item{\code{X}}{matrix (n x p).}
+      \item{\code{y}}{factor of length n.}
     }
     \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    The object itself, invisibly.
   }
 }
 
@@ -119,14 +87,65 @@ Classe abstraite d'un LDA
 \if{html}{\out{<a id="method-LDA-predict"></a>}}
 \if{latex}{\out{\hypertarget{method-LDA-predict}{}}}
 \subsection{\code{LDA$predict()}}{
-  Renvoie la classe majoritaire pour omega
+  Assign each individual of X to one of the classes.
   \subsection{Usage}{
     \if{html}{\out{<div class="r">}}
-    \preformatted{LDA$predict(omega)}
+    \preformatted{LDA$predict(X)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{X}}{one or several individuals (a vector for one individual, or a matrix n x p).}
+    }
     \if{html}{\out{</div>}}
   }
   \subsection{Returns}{
-    \code{matrix}
+    \code{factor} of length n, with the same levels as y.
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LDA-predict_proba"></a>}}
+\if{latex}{\out{\hypertarget{method-LDA-predict_proba}{}}}
+\subsection{\code{LDA$predict_proba()}}{
+  Membership probabilities of each individual of X for each class.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LDA$predict_proba(X)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{X}}{one or several individuals (a vector for one individual, or a matrix n x p).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    \code{matrix} n x K.
+  }
+}
+
+\if{html}{\out{<hr>}}
+\if{html}{\out{<a id="method-LDA-scores"></a>}}
+\if{latex}{\out{\hypertarget{method-LDA-scores}{}}}
+\subsection{\code{LDA$scores()}}{
+  Scores d_k(x) of the classification functions.
+  \subsection{Usage}{
+    \if{html}{\out{<div class="r">}}
+    \preformatted{LDA$scores(X)}
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Arguments}{
+    \if{html}{\out{<div class="arguments">}}
+    \describe{
+      \item{\code{X}}{one or several individuals (a vector for one individual, or a matrix n x p).}
+    }
+    \if{html}{\out{</div>}}
+  }
+  \subsection{Returns}{
+    \code{matrix} n x K.
   }
 }
 

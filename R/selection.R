@@ -6,10 +6,10 @@
 #'   Otherwise an error is raised.
 #' @keywords internal
 #' @noRd
-verif_threshold = function(value, name) {
+verif_threshold <- function(value, name) {
   if (length(value) == 1 &&
-      is.numeric(value) &&
-      !is.na(value) && value >= 0 && value <= 1) {
+    is.numeric(value) &&
+    !is.na(value) && value >= 0 && value <= 1) {
     return(value)
   } else {
     stop(paste0(name, " must be a single number in [0,1]"))
@@ -24,10 +24,10 @@ verif_threshold = function(value, name) {
 #'   Otherwise an error is raised.
 #' @keywords internal
 #' @noRd
-verif_iteration_number = function(value, name) {
+verif_iteration_number <- function(value, name) {
   if (length(value) == 1 &&
-      is.numeric(value) &&
-      !is.na(value) && value > 0 && value == round(value)) {
+    is.numeric(value) &&
+    !is.na(value) && value > 0 && value == round(value)) {
     return(value)
   } else {
     stop(paste0(name, " must be a single integer greater than zero"))
@@ -46,16 +46,16 @@ verif_iteration_number = function(value, name) {
 #'   and `T` (total), with the column names of `X` as dimnames.
 #' @keywords internal
 #' @noRd
-calc_W_T = function(X, y) {
+calc_W_T <- function(X, y) {
   X <- as.matrix(X)
   y <- as.factor(y)
   n <- nrow(X)
   p <- ncol(X)
-  
+
   # T : centrage sur la moyenne globale
   Xc <- scale(X, center = TRUE, scale = FALSE)
   T_mat <- t(Xc) %*% Xc
-  
+
   # W : centrage de chaque individu sur la moyenne de sa classe
   Wc <- matrix(
     data = NA,
@@ -63,15 +63,15 @@ calc_W_T = function(X, y) {
     ncol = p,
     dimnames = list(NULL, colnames(X))
   )
-  
+
   for (k in levels(y)) {
     filtre <- (y == k)
     X_k <- X[filtre, , drop = FALSE]
     Wc[filtre, ] <- sweep(X_k, MARGIN = 2, STATS = colMeans(X_k))
   }
-  
+
   W_mat <- t(Wc) %*% Wc
-  
+
   return(list(W = W_mat, T = T_mat))
 }
 
@@ -80,6 +80,8 @@ calc_W_T = function(X, y) {
 #' Lambda(S) = det(W_SS) / det(T_SS), where W_SS and T_SS are the
 #' sub-matrices of W and T restricted to the variables of S.
 #' The closer to 0, the better the variables separate the classes.
+#' Computed with log-determinants, since det() overflows to Inf
+#' for large sets of variables with high variances.
 #'
 #' @param W Within-class scatter matrix (see `calc_W_T()`).
 #' @param T Total scatter matrix (see `calc_W_T()`).
@@ -87,11 +89,13 @@ calc_W_T = function(X, y) {
 #' @return A single number in \[0, 1\]. By convention, 1 for an empty set.
 #' @keywords internal
 #' @noRd
-wilks = function(W, T, vars) {
+wilks <- function(W, T, vars) {
   if (length(vars) == 0) {
     return(1)
   } else {
-    return(det(W[vars, vars, drop = FALSE]) / det(T[vars, vars, drop = FALSE]))
+    log_det_W <- determinant(W[vars, vars, drop = FALSE], logarithm = TRUE)$modulus
+    log_det_T <- determinant(T[vars, vars, drop = FALSE], logarithm = TRUE)$modulus
+    return(exp(as.numeric(log_det_W - log_det_T)))
   }
 }
 
@@ -113,21 +117,20 @@ wilks = function(W, T, vars) {
 #'   and `p_value`.
 #' @keywords internal
 #' @noRd
-partial_stats = function(W, T, S, j, n, K) {
+partial_stats <- function(W, T, S, j, n, K) {
   q <- length(S)
   lambda_p <- wilks(W, T, c(S, j)) / wilks(W, T, S)
   df1 <- K - 1
   df2 <- n - K - q
   F_stat <- (df2 / df1) * (1 - lambda_p) / lambda_p
   p_value <- pf(F_stat, df1, df2, lower.tail = FALSE)
-  
+
   return(list(
     lambda_p = lambda_p,
     F = F_stat,
     p_value = p_value
   ))
 }
-
 
 
 #' @title Variable selection for linear discriminant analysis (abstract class)
@@ -150,7 +153,6 @@ partial_stats = function(W, T, S, j, n, K) {
 #' @export
 Selection <- R6Class(
   "Selection",
-  
   private = list(
     .slentry = NULL,
     .slstay = NULL,
@@ -162,25 +164,23 @@ Selection <- R6Class(
     .T = NULL,
     .n = NULL,
     .K = NULL,
-    
     search = function(X) {
       stop("must be implemented by a sub class")
     },
-    
     step_forward = function(S, variables) {
       candidates <- setdiff(variables, S)
       if (length(candidates) == 0) {
         return(NULL)
       }
-      
+
       best <- NULL
       for (j in candidates) {
         stats <- partial_stats(private$.W, private$.T, S, j, private$.n, private$.K)
-        
+
         if (!is.finite(stats$F)) {
           next
         }
-        
+
         if (is.null(best) || stats$F > best$F) {
           stats$variable <- j
           best <- stats
@@ -188,25 +188,26 @@ Selection <- R6Class(
       }
       return(best)
     },
-    
     step_backward = function(S) {
       if (length(S) == 0) {
         return(NULL)
       }
-      
+
       worst <- NULL
       for (j in S) {
-        stats <- partial_stats(private$.W,
-                               private$.T,
-                               setdiff(S, j),
-                               j,
-                               private$.n,
-                               private$.K)
-        
+        stats <- partial_stats(
+          private$.W,
+          private$.T,
+          setdiff(S, j),
+          j,
+          private$.n,
+          private$.K
+        )
+
         if (!is.finite(stats$F)) {
           next
         }
-        
+
         if (is.null(worst) || stats$F < worst$F) {
           stats$variable <- j
           worst <- stats
@@ -214,7 +215,7 @@ Selection <- R6Class(
       }
       return(worst)
     },
-    
+
     # One row of the history: action on a variable, given the stats
     # returned by step_forward / step_backward and the set S after the action
     history_row = function(iter, action, stats, S) {
@@ -230,7 +231,6 @@ Selection <- R6Class(
       )
     }
   ),
-  
   public = list(
     #' @description
     #' Create a new selection object.
@@ -250,7 +250,7 @@ Selection <- R6Class(
       private$.slstay <- verif_threshold(value = slstay, name = "slstay")
       private$.max_iter <- verif_iteration_number(value = max_iter, name = "max_iter")
     },
-    
+
     #' @description
     #' Select the variables of `X` that best separate the classes of `y`.
     #' Previous results are reset at each call.
@@ -263,10 +263,10 @@ Selection <- R6Class(
       private$.selected <- NULL
       private$.history <- NULL
       private$.is_fitted <- FALSE
-      
+
       X <- as.matrix(X)
       y <- droplevels(as.factor(y))
-      
+
       if (!is.numeric(X)) {
         stop("X must contain only numeric columns")
       }
@@ -282,19 +282,19 @@ Selection <- R6Class(
       if (is.null(colnames(X))) {
         stop("X must have column names")
       }
-      
+
       res <- calc_W_T(X, y)
       private$.W <- res$W
       private$.T <- res$T
       private$.n <- nrow(X)
       private$.K <- nlevels(y)
-      
+
       private$search(X)
-      
+
       private$.is_fitted <- TRUE
       invisible(self)
     },
-    
+
     #' @description
     #' Keep only the selected variables of a data set.
     #' @param X Data frame or matrix containing at least the selected
@@ -305,7 +305,7 @@ Selection <- R6Class(
       if (!private$.is_fitted) {
         stop("the object is not fitted")
       } else {
-        diff = setdiff(private$.selected, colnames(X))
+        diff <- setdiff(private$.selected, colnames(X))
         if (length(diff) > 0) {
           stop("columns not matching : ", paste(diff, collapse = ", "))
         } else {
@@ -313,7 +313,7 @@ Selection <- R6Class(
         }
       }
     },
-    
+
     #' @description
     #' Shortcut for `fit(X, y)` followed by `transform(X)`.
     #' @param X Numeric data frame or matrix (see `fit()`).
@@ -323,7 +323,7 @@ Selection <- R6Class(
       self$fit(X, y)
       return(self$transform(X))
     },
-    
+
     #' @description
     #' Print the parameters and, once fitted, the selected variables.
     #' @param ... Not used.
@@ -333,34 +333,33 @@ Selection <- R6Class(
       cat("slentry =", private$.slentry, "\n")
       cat("slstay =", private$.slstay, "\n")
       cat("max_iter =", private$.max_iter, "\n")
-      
+
       if (!private$.is_fitted) {
         cat("not fitted yet \n")
       } else {
-        cat(length(private$.selected), "selected variables :" , "\n")
+        cat(length(private$.selected), "selected variables :", "\n")
         cat(paste(private$.selected, collapse = ", "), "\n")
       }
-      
+
       invisible(self)
     },
-    
+
     #' @description
     #' Print the step-by-step history of the selection (see the `history`
     #' field).
     #' @return The object itself, invisibly.
     summary = function() {
       cat(class(self)[1], "\n")
-      
+
       if (is.null(private$.history)) {
         cat("no history yet \n")
       } else {
         print(private$.history)
       }
-      
+
       invisible(self)
     }
   ),
-  
   active = list(
     #' @field slentry Significance level to enter (read-only).
     slentry = function(value) {
@@ -370,7 +369,7 @@ Selection <- R6Class(
         stop("slentry is read-only")
       }
     },
-    
+
     #' @field slstay Significance level to stay (read-only).
     slstay = function(value) {
       if (missing(value)) {
@@ -379,7 +378,7 @@ Selection <- R6Class(
         stop("slstay is read-only")
       }
     },
-    
+
     #' @field max_iter Maximum number of iterations (read-only).
     max_iter = function(value) {
       if (missing(value)) {
@@ -388,7 +387,7 @@ Selection <- R6Class(
         stop("max_iter is read-only")
       }
     },
-    
+
     #' @field selected Character vector of the selected variables, in
     #'   order of entry. `NULL` before `fit()` (read-only).
     selected = function(value) {
@@ -398,7 +397,7 @@ Selection <- R6Class(
         stop("selected is read-only")
       }
     },
-    
+
     #' @field history Data frame with one row per action (read-only),
     #'   `NULL` before `fit()` or if no variable entered. Columns:
     #'   * `step`: iteration number.
@@ -416,7 +415,7 @@ Selection <- R6Class(
         stop("history is read-only")
       }
     },
-    
+
     #' @field is_fitted `TRUE` once `fit()` has been called (read-only).
     is_fitted = function(value) {
       if (missing(value)) {
@@ -427,7 +426,6 @@ Selection <- R6Class(
     }
   )
 )
-
 
 
 #' @title Stepwise variable selection (STEPDISC)
@@ -473,17 +471,16 @@ Selection <- R6Class(
 SelectionStepwise <- R6Class(
   "SelectionStepwise",
   inherit = Selection,
-  
   private = list(
     search = function(X) {
       variables <- colnames(X)
       S <- character(0)
       history <- NULL
       iter <- 0
-      
+
       while (iter < private$.max_iter) {
         iter <- iter + 1
-        
+
         # Add variable
         best <- private$step_forward(S, variables)
         if (is.null(best) || best$p_value > private$.slentry) {
@@ -491,7 +488,7 @@ SelectionStepwise <- R6Class(
         }
         S <- c(S, best$variable)
         history <- rbind(history, private$history_row(iter, "add", best, S))
-        
+
         # Remove variable
         worst <- private$step_backward(S)
         if (!is.null(worst) && worst$p_value > private$.slstay) {
@@ -499,12 +496,11 @@ SelectionStepwise <- R6Class(
           history <- rbind(history, private$history_row(iter, "remove", worst, S))
         }
       }
-      
+
       private$.selected <- S
       private$.history <- history
     }
   ),
-  
   public = list(
     #' @description
     #' Create a new stepwise selection object.
@@ -516,16 +512,17 @@ SelectionStepwise <- R6Class(
     initialize = function(slentry = 0.15,
                           slstay = 0.15,
                           max_iter = 100) {
-      super$initialize(slentry = slentry,
-                       slstay = slstay,
-                       max_iter = max_iter)
+      super$initialize(
+        slentry = slentry,
+        slstay = slstay,
+        max_iter = max_iter
+      )
       if (slentry > slstay) {
-        stop('slentry must be lower than or equal to slstay')
+        stop("slentry must be lower than or equal to slstay")
       }
     }
   )
 )
-
 
 
 #' @title Forward variable selection (STEPDISC)
@@ -561,31 +558,30 @@ SelectionStepwise <- R6Class(
 #'
 #' @export
 SelectionForward <- R6Class("SelectionForward",
-                            inherit = Selection,
-                            
-                            private = list(
-                              search = function(X) {
-                                variables <- colnames(X)
-                                S <- character(0)
-                                history <- NULL
-                                iter <- 0
-                                
-                                while (iter < private$.max_iter) {
-                                  iter <- iter + 1
-                                  
-                                  best <- private$step_forward(S, variables)
-                                  if (is.null(best) || best$p_value > private$.slentry) {
-                                    break
-                                  }
-                                  S <- c(S, best$variable)
-                                  history <- rbind(history, private$history_row(iter, "add", best, S))
-                                }
-                                
-                                private$.selected <- S
-                                private$.history <- history
-                              }
-                            ))
+  inherit = Selection,
+  private = list(
+    search = function(X) {
+      variables <- colnames(X)
+      S <- character(0)
+      history <- NULL
+      iter <- 0
 
+      while (iter < private$.max_iter) {
+        iter <- iter + 1
+
+        best <- private$step_forward(S, variables)
+        if (is.null(best) || best$p_value > private$.slentry) {
+          break
+        }
+        S <- c(S, best$variable)
+        history <- rbind(history, private$history_row(iter, "add", best, S))
+      }
+
+      private$.selected <- S
+      private$.history <- history
+    }
+  )
+)
 
 
 #' @title Backward variable selection (STEPDISC)
@@ -622,31 +618,31 @@ SelectionForward <- R6Class("SelectionForward",
 #'
 #' @export
 SelectionBackward <- R6Class("SelectionBackward",
-                             inherit = Selection,
-                             
-                             private = list(
-                               search = function(X) {
-                                 variables <- colnames(X)
-                                 if (length(variables) > private$.n - private$.K) {
-                                   stop("backward selection needs n - K >= p (more observations than variables)")
-                                 }
-                                 
-                                 S <- variables
-                                 history <- NULL
-                                 iter <- 0
-                                 
-                                 while (iter < private$.max_iter) {
-                                   iter <- iter + 1
-                                   
-                                   worst <- private$step_backward(S)
-                                   if (is.null(worst) || worst$p_value <= private$.slstay) {
-                                     break
-                                   }
-                                   S <- setdiff(S, worst$variable)
-                                   history <- rbind(history, private$history_row(iter, "remove", worst, S))
-                                 }
-                                 
-                                 private$.selected <- S
-                                 private$.history <- history
-                               }
-                             ))
+  inherit = Selection,
+  private = list(
+    search = function(X) {
+      variables <- colnames(X)
+      if (length(variables) > private$.n - private$.K) {
+        stop("backward selection needs n - K >= p (more observations than variables)")
+      }
+
+      S <- variables
+      history <- NULL
+      iter <- 0
+
+      while (iter < private$.max_iter) {
+        iter <- iter + 1
+
+        worst <- private$step_backward(S)
+        if (is.null(worst) || worst$p_value <= private$.slstay) {
+          break
+        }
+        S <- setdiff(S, worst$variable)
+        history <- rbind(history, private$history_row(iter, "remove", worst, S))
+      }
+
+      private$.selected <- S
+      private$.history <- history
+    }
+  )
+)

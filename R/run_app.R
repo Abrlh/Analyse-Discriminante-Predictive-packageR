@@ -16,8 +16,8 @@
 #' @export
 run_app <- function(...) {
 
-  # shiny, DT et readxl sont seulement suggérés : on vérifie leur présence
-  pkgs <- c("shiny", "DT", "readxl")
+  # Les paquets de l'appli sont seulement suggérés : on vérifie leur présence
+  pkgs <- c("shiny", "bslib", "bsicons", "DT", "readxl")
   installed <- vapply(pkgs, requireNamespace, logical(1), quietly = TRUE)
   if (!all(installed)) {
     stop("The application requires the following package(s): ",

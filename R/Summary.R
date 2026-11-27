@@ -22,6 +22,22 @@ wilks_test <- function(lambda, n, p, K) {
       p_value = stats::pf(F_stat, df1, df2, lower.tail = FALSE))
 }
 
+#' Confusion matrix and accuracy
+#'
+#' Shared by `Summary` (training data) and `LDAClassifier$evaluate()`
+#' (new data), so that both are computed in exactly the same way.
+#'
+#' @param y Observed classes (factor).
+#' @param pred Predicted classes (factor with the same levels as `y`).
+#' @return A list with `confusion` (rows: observed, columns: predicted)
+#'   and `accuracy` (proportion of correctly classified observations).
+#' @noRd
+confusion_accuracy <- function(y, pred) {
+  confusion <- table(Observed = y, Predicted = pred)
+  list(confusion = confusion,
+       accuracy = sum(diag(confusion)) / sum(confusion))
+}
+
 #' Model summary
 #'
 #' Internal R6 class gathering the detailed results of a fitted model:
@@ -44,11 +60,13 @@ Summary <- R6::R6Class("Summary",
     initialize = function(Z, y, pred, lda) {
 
       # Évaluation globale : qualité du classement (apprentissage)
-      private$.confusion <- table(Observed = y, Predicted = pred)
-      private$.accuracy <- mean(pred == y)
+      ca <- confusion_accuracy(y, pred)
+      private$.confusion <- ca$confusion
+      private$.accuracy <- ca$accuracy
+
       # Coefficients des fonctions de classement, fournis par la LDA
       private$.coefficients <- lda$coefficients
-      
+
       # Évaluation globale et pertinence des variables (lambda de Wilks).
       # W et T : matrices de dispersion intra-classe et totale.
       WT <- calc_W_T(Z, y)
@@ -104,9 +122,9 @@ Summary <- R6::R6Class("Summary",
   ),
 
   private = list(
-    .confusion = NULL,   # matrice de confusion
-    .accuracy = NULL,     # taux de bonne classification
-    .coefficients = NULL, # coefficients des fonctions de classement
+    .confusion = NULL,      # matrice de confusion
+    .accuracy = NULL,       # taux de bonne classification
+    .coefficients = NULL,   # coefficients des fonctions de classement
     .wilks = NULL,          # test global : lambda de Wilks + F de Rao
     .variable_tests = NULL  # pertinence de chaque variable
   ),

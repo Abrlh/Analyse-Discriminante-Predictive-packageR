@@ -4,16 +4,63 @@
 \name{ldapred-package}
 \alias{ldapred}
 \alias{ldapred-package}
-\title{ldapred: What the Package Does (One Line, Title Case)}
+\title{ldapred: predictive linear discriminant analysis}
 \description{
-What the package does (one paragraph).
+The \code{ldapred} package implements predictive linear discriminant analysis
+(LDA) for a categorical target with two or more classes, with an R6
+interface in the style of scikit-learn and an interactive Shiny
+application.
+}
+\section{Main functions}{
+
+\itemize{
+\item \link{LDAClassifier}: the model. Create it with \code{LDAClassifier$new()},
+fit it with \verb{$fit(X, y)}, predict with \verb{$predict(X)} and
+\verb{$predict_proba(X)}, and describe it with \verb{$print()} and \verb{$summary()}.
+\item \code{\link[=train_test_split]{train_test_split()}}: split a data set into a training sample and
+a test sample, to evaluate the model on observations it has never
+seen.
+\item \code{\link[=run_app]{run_app()}}: launch the interactive application (load a file,
+choose the variables, fit the model, explore the results and predict
+new observations).
+}
+}
+
+\section{Features}{
+
+\itemize{
+\item Numeric and categorical predictors (dummy coding).
+\item Classification functions (coefficients of the model).
+\item Global evaluation of the model (confusion matrix, accuracy,
+Wilks' lambda with Rao's F test) and relevance of each variable
+(partial F tests).
+\item Variable selection: forward, backward and stepwise, based on
+Wilks' lambda (as in SAS PROC STEPDISC).
+\item High-dimensional LDA, with a shrinkage of the within-class
+covariance matrix (Schäfer and Strimmer, 2005).
+}
+}
+
+\section{Getting started}{
+
+See the examples of \link{LDAClassifier} for a complete workflow on the
+\code{iris} data set.
+}
+
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/Abrlh/Analyse-Discriminante-Predictive-packageR}
+  \item Report bugs at \url{https://github.com/Abrlh/Analyse-Discriminante-Predictive-packageR/issues}
+}
+
 }
 \author{
-\strong{Maintainer}: First Last \email{first.last@example.com}
+\strong{Maintainer}: ldapred team \email{ldapred.team@users.noreply.github.com}
 
 Authors:
 \itemize{
-  \item First Last \email{first.last@example.com}
+  \item ldapred team \email{ldapred.team@users.noreply.github.com}
 }
 
 }

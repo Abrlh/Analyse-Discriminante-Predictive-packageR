@@ -22,12 +22,12 @@ check_X <- function(X) {
     stop("`X` has no columns.", call. = FALSE)
   }
 
-  # 3. Les noms de colonnes doivent exister et être uniques 
+  # 3. Les noms de colonnes doivent exister et être uniques
   if (any(names(X) == "") || anyDuplicated(names(X)) > 0) {
     stop("All columns of `X` must have unique, non-empty names.", call. = FALSE)
   }
 
-  # 4. Chaque colonne doit être numérique, facteur, caractère ou logique 
+  # 4. Chaque colonne doit être numérique, facteur, caractère ou logique
   ok_type <- vapply(X, function(col) {
     is.numeric(col) || is.factor(col) || is.character(col) || is.logical(col)
   }, logical(1))
@@ -56,23 +56,27 @@ check_y <- function(y, X) {
 
   # 1. y doit être un factor
   if (!is.factor(y)) {
-    stop("`y` must be a factor, not an object of class '", class(y)[1], "'. ", "Use `as.factor(y)` to convert it.", call. = FALSE)
+    stop("`y` must be a factor, not an object of class '", class(y)[1], "'. ",
+         "Use `as.factor(y)` to convert it.", call. = FALSE)
   }
 
   # 2. y doit avoir autant de valeurs que X a de lignes
   if (length(y) != nrow(X)) {
-    stop("`y` has ", length(y), " values but `X` has ", nrow(X), " rows. ", "They must have the same length.", call. = FALSE)
+    stop("`y` has ", length(y), " values but `X` has ", nrow(X), " rows. ",
+         "They must have the same length.", call. = FALSE)
   }
 
   # 3. y ne doit pas contenir de valeurs manquantes
   if (anyNA(y)) {
-    stop("`y` contains ", sum(is.na(y)), " missing value(s). ", "Remove these observations before fitting.", call. = FALSE)
+    stop("`y` contains ", sum(is.na(y)), " missing value(s). ",
+         "Remove these observations before fitting.", call. = FALSE)
   }
 
   # 4. Au moins 2 classes réellement présentes (et pas seulement déclarées)
   n_classes <- length(unique(y))
   if (n_classes < 2) {
-    stop("`y` must contain at least 2 different classes, found ", n_classes, ".", call. = FALSE)
+    stop("`y` must contain at least 2 different classes, found ",
+         n_classes, ".", call. = FALSE)
   }
 
   invisible(TRUE)
@@ -203,7 +207,7 @@ check_compatible <- function(X, train_kinds) {
          paste(missing_vars, collapse = ", "), ".", call. = FALSE)
   }
 
-  # 2. Chaque variable doit être du même genre(numeric ou categorielle) qu'à l'apprentissage
+  # 2. Chaque variable doit être du même genre (numérique ou catégorielle) qu'à l'apprentissage
   new_kinds <- vapply(X[names(train_kinds)], column_kind, character(1))
   wrong <- names(train_kinds)[new_kinds != train_kinds]
   if (length(wrong) > 0) {

@@ -1,9 +1,19 @@
 Package: ldapred
-Title: What the Package Does (One Line, Title Case)
-Version: 0.0.0.9000
+Title: Predictive Linear Discriminant Analysis
+Version: 1.0.0
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+    person("ldapred team", role = c("aut", "cre"),
+           email = "ldapred.team@users.noreply.github.com")
+Description: Predictive linear discriminant analysis for a categorical target
+    with two or more classes, with an R6 interface in the style of
+    scikit-learn. Handles numeric and categorical predictors, gives the
+    classification functions, a global evaluation of the model (confusion
+    matrix, Wilks' lambda with Rao's F test) and the relevance of each
+    variable, and offers stepwise variable selection (forward, backward,
+    stepwise) and a high-dimensional LDA with shrinkage. Includes an
+    interactive Shiny application.
+URL: https://github.com/Abrlh/Analyse-Discriminante-Predictive-packageR
+BugReports: https://github.com/Abrlh/Analyse-Discriminante-Predictive-packageR/issues
 License: MIT + file LICENSE
 Config/roxygen2/version: 8.1.1
 Encoding: UTF-8

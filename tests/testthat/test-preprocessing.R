@@ -4,7 +4,7 @@ df_train <- data.frame(
 )
 
 test_that("fit_transform removes incomplete rows and encodes categoricals", {
-  d <- Data$new()
+  d <- Preprocessor$new()
   expect_warning(res <- d$fit_transform(df_train), "1 row")
   expect_equal(res$rows, c(1, 2, 3, 5))
   expect_equal(colnames(res$Z), c("age", "couleur_rouge", "couleur_vert"))
@@ -14,13 +14,13 @@ test_that("fit_transform removes incomplete rows and encodes categoricals", {
 })
 
 test_that("active fields are read-only", {
-  d <- Data$new()
+  d <- Preprocessor$new()
   suppressWarnings(d$fit_transform(df_train))
   expect_error(d$kinds <- "test", "read-only")
 })
 
 test_that("transform reapplies the training encoding", {
-  d <- Data$new()
+  d <- Preprocessor$new()
   suppressWarnings(d$fit_transform(df_train))
   new <- data.frame(id = 1:4,
                     couleur = c("rouge", "jaune", "bleu", "vert"),
@@ -33,8 +33,8 @@ test_that("transform reapplies the training encoding", {
 
 test_that("transform fails when not fitted or incompatible", {
   new <- data.frame(age = 30, couleur = "bleu")
-  expect_error(Data$new()$transform(new), "not fitted")
-  d <- Data$new()
+  expect_error(Preprocessor$new()$transform(new), "not fitted")
+  d <- Preprocessor$new()
   suppressWarnings(d$fit_transform(df_train))
   expect_error(d$transform(new["age"]), "missing from")
 })

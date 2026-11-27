@@ -40,90 +40,80 @@ test_that("selection thresholds are passed to the selection", {
 })
 
 test_that("fit, predict and predict_proba orchestrate the pipeline", {
-  with_fake_lda({
-    m <- LDAClassifier$new()
-    expect_invisible(m$fit(iris[, 1:4], iris$Species))
-    expect_true(m$is_fitted)
-    expect_equal(m$classes, levels(iris$Species))
-    expect_equal(m$selected_vars, names(iris)[1:4])
+  m <- LDAClassifier$new()
+  expect_invisible(m$fit(iris[, 1:4], iris$Species))
+  expect_true(m$is_fitted)
+  expect_equal(m$classes, levels(iris$Species))
+  expect_equal(m$selected_vars, names(iris)[1:4])
 
-    pred <- m$predict(iris)
-    expect_s3_class(pred, "factor")
-    expect_length(pred, 150)
-    expect_equal(levels(pred), levels(iris$Species))
+  pred <- m$predict(iris)
+  expect_s3_class(pred, "factor")
+  expect_length(pred, 150)
+  expect_equal(levels(pred), levels(iris$Species))
 
-    P <- m$predict_proba(iris)
-    expect_equal(dim(P), c(150, 3))
-    expect_equal(colnames(P), levels(iris$Species))
-    expect_equal(unname(rowSums(P)), rep(1, 150))
+  P <- m$predict_proba(iris)
+  expect_equal(dim(P), c(150, 3))
+  expect_equal(colnames(P), levels(iris$Species))
+  expect_equal(unname(rowSums(P)), rep(1, 150))
 
-    # La classe prédite est celle de probabilité maximale
-    expect_equal(as.character(pred), colnames(P)[max.col(P)])
+  # La classe prédite est celle de probabilité maximale
+  expect_equal(as.character(pred), colnames(P)[max.col(P)])
 
-    expect_output(print(m), "fitted on 150")
-  })
+  expect_output(print(m), "fitted on 150")
 })
 
 test_that("predictions keep the size of X when rows contain NA", {
-  with_fake_lda({
-    m <- LDAClassifier$new()$fit(iris[, 1:4], iris$Species)
-    new <- iris[1:5, 1:4]
-    new$Sepal.Length[2] <- NA
+  m <- LDAClassifier$new()$fit(iris[, 1:4], iris$Species)
+  new <- iris[1:5, 1:4]
+  new$Sepal.Length[2] <- NA
 
-    expect_warning(pred <- m$predict(new), "missing")
-    expect_length(pred, 5)
-    expect_true(is.na(pred[2]))
-    expect_false(anyNA(pred[-2]))
+  expect_warning(pred <- m$predict(new), "missing")
+  expect_length(pred, 5)
+  expect_true(is.na(pred[2]))
+  expect_false(anyNA(pred[-2]))
 
-    expect_warning(P <- m$predict_proba(new), "missing")
-    expect_true(all(is.na(P[2, ])))
-  })
+  expect_warning(P <- m$predict_proba(new), "missing")
+  expect_true(all(is.na(P[2, ])))
 })
 
 test_that("categorical predictors go through the whole pipeline", {
-  with_fake_lda({
-    df <- iris[, 1:4]
-    df$size <- ifelse(iris$Petal.Length > 4, "big", "small")
-    m <- LDAClassifier$new()$fit(df, iris$Species)
-    expect_true("size_small" %in% m$selected_vars)
-    expect_length(m$predict(df), 150)
-  })
+  df <- iris[, 1:4]
+  df$size <- ifelse(iris$Petal.Length > 4, "big", "small")
+  m <- LDAClassifier$new()$fit(df, iris$Species)
+  expect_true("size_small" %in% m$selected_vars)
+  expect_length(m$predict(df), 150)
 })
 
 test_that("fit computes the confusion matrix and accuracy, score and summary work", {
-  with_fake_lda({
-    m <- LDAClassifier$new()$fit(iris[, 1:4], iris$Species)
+  m <- LDAClassifier$new()$fit(iris[, 1:4], iris$Species)
 
-    # Matrice 3 x 3 contenant les 150 individus
-    expect_equal(dim(m$confusion), c(3, 3))
-    expect_equal(sum(m$confusion), 150)
+  # Matrice 3 x 3 contenant les 150 individus
+  expect_equal(dim(m$confusion), c(3, 3))
+  expect_equal(sum(m$confusion), 150)
 
-    # Le taux est la proportion de la diagonale (bonnes prédictions)
-    expect_equal(m$accuracy, sum(diag(m$confusion)) / 150)
+  # Le taux est la proportion de la diagonale (bonnes prédictions)
+  expect_equal(m$accuracy, sum(diag(m$confusion)) / 150)
 
-    # score() sur les mêmes données redonne le taux d'apprentissage
-    expect_equal(m$score(iris, iris$Species), m$accuracy)
+  # score() sur les mêmes données redonne le taux d'apprentissage
+  expect_equal(m$score(iris, iris$Species), m$accuracy)
 
-    # summary() affiche le résumé
-    expect_output(m$summary(), "Confusion matrix")
+  # summary() affiche le résumé
+  expect_output(m$summary(), "Confusion matrix")
 
-    # Lecture seule
-    expect_error(m$accuracy <- 1, "read-only")
-  })
+  # Lecture seule
+  expect_error(m$accuracy <- 1, "read-only")
 })
 
 test_that("evaluate returns the confusion matrix and accuracy on new data", {
-  with_fake_lda({
-    set.seed(1)
-    test_idx <- sample(150, 45)
-    m <- LDAClassifier$new()$fit(iris[-test_idx, 1:4], iris$Species[-test_idx])
-    ev <- m$evaluate(iris[test_idx, ], iris$Species[test_idx])
+  set.seed(1)
+  test_idx <- sample(150, 45)
+  m <- LDAClassifier$new()$fit(iris[-test_idx, 1:4], iris$Species[-test_idx])
+  ev <- m$evaluate(iris[test_idx, ], iris$Species[test_idx])
 
-    expect_equal(dim(ev$confusion), c(3, 3))
-    expect_equal(sum(ev$confusion), 45)
-    expect_equal(ev$accuracy, sum(diag(ev$confusion)) / 45)
-    expect_equal(m$score(iris[test_idx, ], iris$Species[test_idx]), ev$accuracy)
-  })
+  expect_equal(dim(ev$confusion), c(3, 3))
+  expect_equal(sum(ev$confusion), 45)
+  expect_equal(ev$accuracy, sum(diag(ev$confusion)) / 45)
+  expect_equal(m$score(iris[test_idx, ], iris$Species[test_idx]), ev$accuracy)
 })
 
 test_that("a categorical variable is kept as a whole after selection", {
@@ -148,4 +138,52 @@ test_that("Wilks' lambda and partial F tests match the reference values on iris"
 
   vt <- m$variable_tests
   expect_equal(vt$F, c(4.72, 21.94, 35.59, 24.90), tolerance = 1e-3)
+})
+
+# ---------------------------------------------------------------------------
+# train_test_split (défini dans R/LDAClassifier.R)
+# ---------------------------------------------------------------------------
+
+test_that("train_test_split returns samples of the right size", {
+  sp <- train_test_split(iris[, 1:4], iris$Species, test_size = 0.3, seed = 123)
+  expect_equal(nrow(sp$X_test), 45)
+  expect_equal(nrow(sp$X_train), 105)
+  expect_length(sp$y_test, 45)
+  expect_length(sp$y_train, 105)
+})
+
+test_that("the split is stratified by default", {
+  sp <- train_test_split(iris[, 1:4], iris$Species, test_size = 0.3, seed = 123)
+  expect_equal(as.vector(table(sp$y_test)), c(15, 15, 15))
+})
+
+test_that("training and test samples are disjoint and cover all rows", {
+  sp <- train_test_split(iris[, 1:4], iris$Species, seed = 1)
+  train_rows <- setdiff(seq_len(150), sp$test_index)
+  expect_length(intersect(train_rows, sp$test_index), 0)
+  expect_equal(sort(c(train_rows, sp$test_index)), 1:150)
+  expect_equal(sp$X_test, iris[sp$test_index, 1:4])
+})
+
+test_that("the same seed gives the same split", {
+  sp1 <- train_test_split(iris[, 1:4], iris$Species, seed = 42)
+  sp2 <- train_test_split(iris[, 1:4], iris$Species, seed = 42)
+  sp3 <- train_test_split(iris[, 1:4], iris$Species, seed = 43)
+  expect_equal(sp1$test_index, sp2$test_index)
+  expect_false(identical(sp1$test_index, sp3$test_index))
+})
+
+test_that("a non-stratified split also works", {
+  sp <- train_test_split(iris[, 1:4], iris$Species, test_size = 0.3,
+                         seed = 123, stratify = FALSE)
+  expect_equal(nrow(sp$X_test), 45)
+})
+
+test_that("invalid inputs are rejected", {
+  expect_error(train_test_split(iris[, 1:4], iris$Species, test_size = 0), "strictly between")
+  expect_error(train_test_split(iris[, 1:4], iris$Species, test_size = 1.5), "strictly between")
+  expect_error(train_test_split(iris[, 1:4], as.character(iris$Species)), "must be a factor")
+  # 1 individu par classe : 10 % de 1 arrondi donne 0, l'échantillon test serait vide
+  expect_error(train_test_split(iris[c(1, 51), 1:4], droplevels(iris$Species[c(1, 51)]),
+                                test_size = 0.1), "empty")
 })

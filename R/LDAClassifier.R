@@ -1,14 +1,118 @@
 #' Predictive linear discriminant analysis classifier
 #'
 #' @description
-#' R6 class implementing predictive linear discriminant analysis with a
-#' scikit-learn style interface: `$fit()`, `$predict()`, `$predict_proba()`,
-#' `$print()` and `$summary()`.
+#' R6 class implementing predictive linear discriminant analysis (LDA) for a
+#' categorical target with two or more classes. Its interface follows
+#' scikit-learn: create the object with `$new()`, fit it with `$fit(X, y)`,
+#' then predict new observations with `$predict(X)` (classes) or
+#' `$predict_proba(X)` (membership probabilities). `$print()` gives a short
+#' description and `$summary()` a detailed one.
 #'
 #' @details
-#' Categorical predictors (factor, character or logical columns) are dummy
-#' coded, the first level of each variable being used as the reference.
-#' Rows with missing values are removed before fitting.
+#' **Model.** Each class \eqn{k} is assumed to follow a multivariate normal
+#' distribution with mean \eqn{\mu_k} and a covariance matrix \eqn{W} common
+#' to all classes. Bayes' rule then gives one linear classification function
+#' per class,
+#' \deqn{d_k(x) = \ln \pi_k - \frac{1}{2} \mu_k^\top W^{-1} \mu_k + (W^{-1} \mu_k)^\top x,}
+#' where \eqn{\pi_k} is the proportion of class \eqn{k} in the training data.
+#' An observation is assigned to the class with the highest score, and the
+#' membership probabilities are the softmax of the scores.
+#'
+#' **Workflow of `$fit()`.** The data are checked, rows with missing values
+#' are removed (with a warning), categorical predictors are encoded, the
+#' variables are optionally selected, the LDA is fitted and the evaluation
+#' indicators are computed on the training data.
+#'
+#' **Categorical predictors.** Factor, character and logical columns are
+#' dummy coded: one 0/1 column per level, except the first level, used as the
+#' reference (columns named `variable_level`). Unknown levels met in new data
+#' are treated as the reference level, with a warning. After a variable
+#' selection, a categorical variable is kept as a whole: if one of its dummy
+#' columns is selected, all of them are kept.
+#'
+#' **Variable selection** (`selection`). Stepwise discriminant analysis based
+#' on Wilks' lambda, as in SAS PROC STEPDISC: `"forward"` adds the most
+#' significant variable while its p-value is at most `slentry`,
+#' `"backward"` removes the least significant variable while its p-value is
+#' greater than `slstay`, and `"stepwise"` alternates both (it requires
+#' `slentry <= slstay`). The selection is done on the training data only.
+#'
+#' **High dimension** (`method = "highdim"`). When there are many or highly
+#' correlated variables, \eqn{W} is badly estimated or cannot be inverted.
+#' The high-dimensional LDA shrinks it toward its diagonal,
+#' \eqn{W_\lambda = (1 - \lambda) W + \lambda \mathrm{diag}(W)}, with an
+#' intensity \eqn{\lambda} estimated from the data (Schäfer and Strimmer,
+#' 2005) or set with `shrinkage`. The classic LDA needs \eqn{n - K \ge p}.
+#'
+#' @section Reading the results:
+#' \itemize{
+#'   \item `coefficients`: one column per class; the first row (`intercept`)
+#'     is the constant of the classification function, the other rows the
+#'     coefficient of each variable. The larger the coefficient of a variable
+#'     for a class, the more large values of this variable favour this class.
+#'   \item `confusion` and `accuracy`: classification of the training data.
+#'     This resubstitution rate is optimistic; use [train_test_split()] and
+#'     `$evaluate()` or `$score()` on a test sample for an honest estimate.
+#'   \item `wilks`: global test of the equality of the class means. Wilks'
+#'     lambda is between 0 and 1, the closer to 0 the better the classes are
+#'     separated. Rao's F approximation gives the p-value: a small p-value
+#'     means that the classes are significantly separated.
+#'   \item `variable_tests`: relevance of each variable given all the
+#'     others (partial lambda, partial R2, F statistic and p-value). A large
+#'     p-value indicates a variable that brings nothing more than the others.
+#'   \item `selection_history`: one row per step of the selection (variable
+#'     entered or removed, Wilks' lambda of the model, partial R2, F, p-value).
+#' }
+#'
+#' @references
+#' Rakotomalala R., *Analyse discriminante linéaire prédictive*, course
+#' notes, Université Lumière Lyon 2.
+#'
+#' Rao C. R. (1951), An asymptotic expansion of the distribution of Wilks'
+#' criterion, *Bulletin of the International Statistical Institute*, 33,
+#' 177-180.
+#'
+#' Schäfer J., Strimmer K. (2005), A shrinkage approach to large-scale
+#' covariance matrix estimation and implications for functional genomics,
+#' *Statistical Applications in Genetics and Molecular Biology*, 4(1).
+#'
+#' SAS Institute, *The STEPDISC Procedure*, SAS/STAT User's Guide.
+#'
+#' @seealso [train_test_split()] to build a test sample, [run_app()] for the
+#'   interactive application.
+#'
+#' @examples
+#' # Training and test samples
+#' sp <- train_test_split(iris[, 1:4], iris$Species, test_size = 0.3, seed = 1)
+#'
+#' # Fit the model and describe it
+#' model <- LDAClassifier$new()
+#' model$fit(sp$X_train, sp$y_train)
+#' model
+#' model$summary()
+#'
+#' # Classification functions, global test and relevance of the variables
+#' model$coefficients
+#' model$wilks
+#' model$variable_tests
+#'
+#' # Predict new observations and evaluate the model on the test sample
+#' head(model$predict(sp$X_test))
+#' head(model$predict_proba(sp$X_test))
+#' model$evaluate(sp$X_test, sp$y_test)
+#'
+#' # Stepwise selection of the variables
+#' sel <- LDAClassifier$new(selection = "stepwise", slentry = 0.05, slstay = 0.05)
+#' sel$fit(iris[, 1:4], iris$Species)
+#' sel$selected_vars
+#' sel$selection_history
+#'
+#' # A categorical predictor with the high-dimensional LDA
+#' df <- iris[, 1:4]
+#' df$size <- cut(iris$Sepal.Width, 3, labels = c("small", "medium", "large"))
+#' hd <- LDAClassifier$new(method = "highdim")
+#' hd$fit(df, iris$Species)
+#' hd$shrinkage
 #'
 #' @export
 LDAClassifier <- R6::R6Class("LDAClassifier",
@@ -34,7 +138,8 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     #' @return A new `LDAClassifier` object.
     initialize = function(method = c("classic", "highdim"),
                           selection = c("none", "forward", "backward", "stepwise"),
-                          slentry = 0.15, slstay = 0.15, max_iter = 100, shrinkage = NULL){
+                          slentry = 0.15, slstay = 0.15, max_iter = 100,
+                          shrinkage = NULL) {
       # Vérifie que la valeur fait partie des choix autorisés
       private$.method <- match.arg(method)
       private$.selection <- match.arg(selection)
@@ -62,8 +167,8 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       check_constant(X)
 
       # 2. Codage des données (retire les lignes avec NA)
-      private$.data <- Data$new()
-      prep <- private$.data$fit_transform(X)
+      private$.preprocessor <- Preprocessor$new()
+      prep <- private$.preprocessor$fit_transform(X)
       Z <- prep$Z
 
       # 3. y aligné sur les lignes gardées, puis retrait des modalités vides
@@ -88,7 +193,6 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
         if (length(vars) == 0) {
           stop("No variable was selected.", call. = FALSE)
         }
-        
       }
 
       # 6. Assez d'individus pour la LDA classique
@@ -109,7 +213,6 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
 
       # 9. Résumé du modèle (évaluation sur les données d'apprentissage)
       pred_train <- private$.lda$predict(Z[, vars, drop = FALSE])
-      pred_train <- factor(as.character(pred_train), levels = levels(y))
       private$.summary <- Summary$new(Z = Z[, vars, drop = FALSE], y = y,
                                       pred = pred_train, lda = private$.lda)
 
@@ -181,9 +284,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
       truth <- factor(as.character(y[keep]), levels = private$.classes)
       pred <- factor(as.character(pred[keep]), levels = private$.classes)
 
-      confusion <- table(Observed = truth, Predicted = pred)
-      list(confusion = confusion,
-           accuracy = sum(diag(confusion)) / sum(confusion))
+      confusion_accuracy(truth, pred)
     },
 
     # Methode score ***
@@ -238,7 +339,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
   private = list(
     .method = NULL,         # "classic" ou "highdim"
     .selection = NULL,      # "none", "forward", "backward" ou "stepwise"
-    .data = NULL,           # objet Data (codage mémorisé)
+    .preprocessor = NULL,   # objet Preprocessor (codage mémorisé)
     .selector = NULL,       # objet Selection (si sélection demandée)
     .lda = NULL,            # objet LDA entraîné
     .selected_vars = NULL,  # colonnes de Z utilisées par la LDA
@@ -250,7 +351,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     .is_fitted = FALSE,
     .slentry = NULL,        # seuil d'entrée de la sélection
     .slstay = NULL,         # seuil de maintien de la sélection
-    .max_iter = NULL,     # nombre maximal d'itérations de la sélection
+    .max_iter = NULL,       # nombre maximal d'itérations de la sélection
     .shrinkage = NULL,      # intensité du shrinkage (LDA grande dimension)
 
     # Code commun à predict() et predict_proba() :
@@ -258,7 +359,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     prepare = function(X) {
       check_fitted(private$.is_fitted)
       check_X(X)
-      prep <- private$.data$transform(X)
+      prep <- private$.preprocessor$transform(X)
       prep$Z <- prep$Z[, private$.selected_vars, drop = FALSE]
       prep
     },
@@ -266,53 +367,33 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     # Stratégie pour les variables catégorielles : une variable est gardée
     # en entier dès qu'au moins une de ses indicatrices a été sélectionnée.
     complete_dummies = function(vars) {
-      kinds <- private$.data$kinds
-      lev <- private$.data$levels
-      for (v in names(kinds)[kinds == "categorical"]) {
-        dummies <- paste0(v, "_", lev[[v]][-1])   # indicatrices de v (sans la référence)
+      for (dummies in private$.preprocessor$dummies) {   # indicatrices de chaque variable
         if (any(dummies %in% vars)) {
           vars <- union(vars, dummies)            # on ajoute celles qui manquent
         }
       }
       # Remet les colonnes dans l'ordre de la matrice codée
-      intersect(private$.data$feature_names, vars)
+      intersect(private$.preprocessor$feature_names, vars)
     },
 
     # Crée l'objet LDA correspondant à la méthode choisie.
-    # La classe est retrouvée par son nom : message clair si elle n'existe pas encore.
-
+    # Le shrinkage ne concerne que la LDA grande dimension.
     new_lda = function() {
-      cls <- switch(private$.method,
-        classic = "LDA_classic",  
-        highdim = "LDA_high_dim"
+      switch(private$.method,
+        classic = LDA_classic$new(),
+        highdim = LDA_high_dim$new(shrinkage = private$.shrinkage)
       )
-      if (!exists(cls, mode = "environment")) {
-        stop("The class `", cls, "` is not available yet.", call. = FALSE)
-      }
-
-      lda_class <- get(cls, mode = "environment")
-      # Le shrinkage ne concerne que la LDA grande dimension
-      if (private$.method == "highdim") {
-        lda_class$new(shrinkage = private$.shrinkage)
-      } else {
-        lda_class$new()
-      }
-      
     },
 
     # Crée l'objet de sélection correspondant à la stratégie choisie.
     new_selector = function() {
-      cls <- switch(private$.selection,
-        forward  = "SelectionForward",
-        backward = "SelectionBackward",
-        stepwise = "SelectionStepwise"
+      selector <- switch(private$.selection,
+        forward  = SelectionForward,
+        backward = SelectionBackward,
+        stepwise = SelectionStepwise
       )
-      if (!exists(cls, mode = "environment")) {
-        stop("The class `", cls, "` is not available yet.", call. = FALSE)
-      }
-
-      get(cls, mode = "environment")$new(slentry = private$.slentry, slstay = private$.slstay, max_iter = private$.max_iter)
-    
+      selector$new(slentry = private$.slentry, slstay = private$.slstay,
+                   max_iter = private$.max_iter)
     }
   ),
 

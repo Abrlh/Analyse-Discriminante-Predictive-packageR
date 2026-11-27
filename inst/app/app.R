@@ -1327,7 +1327,7 @@ server <- function(input, output, session) {
   output$coefficients <- renderTable({
     coef <- analysis()$model$coefficients
     validate(need(!is.null(coef),
-      "Les coefficients seront affichés dès que les classes LDA les fourniront."))
+      "Coefficients non disponibles pour ce modèle."))
     coef
   }, rownames = TRUE, digits = 4)
 

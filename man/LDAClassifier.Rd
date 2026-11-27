@@ -4,14 +4,122 @@
 \alias{LDAClassifier}
 \title{Predictive linear discriminant analysis classifier}
 \description{
-R6 class implementing predictive linear discriminant analysis with a
-scikit-learn style interface: \verb{$fit()}, \verb{$predict()}, \verb{$predict_proba()},
-\verb{$print()} and \verb{$summary()}.
+R6 class implementing predictive linear discriminant analysis (LDA) for a
+categorical target with two or more classes. Its interface follows
+scikit-learn: create the object with \verb{$new()}, fit it with \verb{$fit(X, y)},
+then predict new observations with \verb{$predict(X)} (classes) or
+\verb{$predict_proba(X)} (membership probabilities). \verb{$print()} gives a short
+description and \verb{$summary()} a detailed one.
 }
 \details{
-Categorical predictors (factor, character or logical columns) are dummy
-coded, the first level of each variable being used as the reference.
-Rows with missing values are removed before fitting.
+\strong{Model.} Each class \eqn{k} is assumed to follow a multivariate normal
+distribution with mean \eqn{\mu_k} and a covariance matrix \eqn{W} common
+to all classes. Bayes' rule then gives one linear classification function
+per class,
+\deqn{d_k(x) = \ln \pi_k - \frac{1}{2} \mu_k^\top W^{-1} \mu_k + (W^{-1} \mu_k)^\top x,}
+where \eqn{\pi_k} is the proportion of class \eqn{k} in the training data.
+An observation is assigned to the class with the highest score, and the
+membership probabilities are the softmax of the scores.
+
+\strong{Workflow of \verb{$fit()}.} The data are checked, rows with missing values
+are removed (with a warning), categorical predictors are encoded, the
+variables are optionally selected, the LDA is fitted and the evaluation
+indicators are computed on the training data.
+
+\strong{Categorical predictors.} Factor, character and logical columns are
+dummy coded: one 0/1 column per level, except the first level, used as the
+reference (columns named \code{variable_level}). Unknown levels met in new data
+are treated as the reference level, with a warning. After a variable
+selection, a categorical variable is kept as a whole: if one of its dummy
+columns is selected, all of them are kept.
+
+\strong{Variable selection} (\code{selection}). Stepwise discriminant analysis based
+on Wilks' lambda, as in SAS PROC STEPDISC: \code{"forward"} adds the most
+significant variable while its p-value is at most \code{slentry},
+\code{"backward"} removes the least significant variable while its p-value is
+greater than \code{slstay}, and \code{"stepwise"} alternates both (it requires
+\code{slentry <= slstay}). The selection is done on the training data only.
+
+\strong{High dimension} (\code{method = "highdim"}). When there are many or highly
+correlated variables, \eqn{W} is badly estimated or cannot be inverted.
+The high-dimensional LDA shrinks it toward its diagonal,
+\eqn{W_\lambda = (1 - \lambda) W + \lambda \mathrm{diag}(W)}, with an
+intensity \eqn{\lambda} estimated from the data (Schäfer and Strimmer,
+2005) or set with \code{shrinkage}. The classic LDA needs \eqn{n - K \ge p}.
+}
+\section{Reading the results}{
+
+\itemize{
+\item \code{coefficients}: one column per class; the first row (\code{intercept})
+is the constant of the classification function, the other rows the
+coefficient of each variable. The larger the coefficient of a variable
+for a class, the more large values of this variable favour this class.
+\item \code{confusion} and \code{accuracy}: classification of the training data.
+This resubstitution rate is optimistic; use \code{\link[=train_test_split]{train_test_split()}} and
+\verb{$evaluate()} or \verb{$score()} on a test sample for an honest estimate.
+\item \code{wilks}: global test of the equality of the class means. Wilks'
+lambda is between 0 and 1, the closer to 0 the better the classes are
+separated. Rao's F approximation gives the p-value: a small p-value
+means that the classes are significantly separated.
+\item \code{variable_tests}: relevance of each variable given all the
+others (partial lambda, partial R2, F statistic and p-value). A large
+p-value indicates a variable that brings nothing more than the others.
+\item \code{selection_history}: one row per step of the selection (variable
+entered or removed, Wilks' lambda of the model, partial R2, F, p-value).
+}
+}
+
+\examples{
+# Training and test samples
+sp <- train_test_split(iris[, 1:4], iris$Species, test_size = 0.3, seed = 1)
+
+# Fit the model and describe it
+model <- LDAClassifier$new()
+model$fit(sp$X_train, sp$y_train)
+model
+model$summary()
+
+# Classification functions, global test and relevance of the variables
+model$coefficients
+model$wilks
+model$variable_tests
+
+# Predict new observations and evaluate the model on the test sample
+head(model$predict(sp$X_test))
+head(model$predict_proba(sp$X_test))
+model$evaluate(sp$X_test, sp$y_test)
+
+# Stepwise selection of the variables
+sel <- LDAClassifier$new(selection = "stepwise", slentry = 0.05, slstay = 0.05)
+sel$fit(iris[, 1:4], iris$Species)
+sel$selected_vars
+sel$selection_history
+
+# A categorical predictor with the high-dimensional LDA
+df <- iris[, 1:4]
+df$size <- cut(iris$Sepal.Width, 3, labels = c("small", "medium", "large"))
+hd <- LDAClassifier$new(method = "highdim")
+hd$fit(df, iris$Species)
+hd$shrinkage
+
+}
+\references{
+Rakotomalala R., \emph{Analyse discriminante linéaire prédictive}, course
+notes, Université Lumière Lyon 2.
+
+Rao C. R. (1951), An asymptotic expansion of the distribution of Wilks'
+criterion, \emph{Bulletin of the International Statistical Institute}, 33,
+177-180.
+
+Schäfer J., Strimmer K. (2005), A shrinkage approach to large-scale
+covariance matrix estimation and implications for functional genomics,
+\emph{Statistical Applications in Genetics and Molecular Biology}, 4(1).
+
+SAS Institute, \emph{The STEPDISC Procedure}, SAS/STAT User's Guide.
+}
+\seealso{
+\code{\link[=train_test_split]{train_test_split()}} to build a test sample, \code{\link[=run_app]{run_app()}} for the
+interactive application.
 }
 \section{Active bindings}{
   \if{html}{\out{<div class="r6-active-bindings">}}

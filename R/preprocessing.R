@@ -6,7 +6,7 @@
 #' fitting so that it can be applied identically to new data.
 #'
 #' @noRd
-Data <- R6::R6Class("Data",
+Preprocessor <- R6::R6Class("Preprocessor",
 
   public = list(
 
@@ -41,7 +41,7 @@ Data <- R6::R6Class("Data",
 
       list(Z = Z, rows = rows)
     },
-    
+
     #' @description Apply the encoding learned by `fit_transform()` to new data.
     #' @param X New predictor data frame (already checked by `check_X()`).
     #' @return A list with `Z` (numeric matrix of the complete rows) and `rows`
@@ -103,7 +103,7 @@ Data <- R6::R6Class("Data",
       Z_cat <- lapply(cat_vars, function(v) {
         others <- private$.levels[[v]][-1]
         M <- outer(as.character(X[[v]]), others, "==") * 1
-        colnames(M) <- paste0(v, "_", others)
+        colnames(M) <- private$dummy_names(v)
         M
       })
 
@@ -112,6 +112,12 @@ Data <- R6::R6Class("Data",
       storage.mode(Z) <- "double"
       rownames(Z) <- NULL
       Z
+    },
+
+    # Noms des indicatrices d'une variable catégorielle (sans la référence).
+    # Seul endroit où cette règle de nommage est écrite.
+    dummy_names = function(v) {
+      paste0(v, "_", private$.levels[[v]][-1])
     }
   ),
 
@@ -133,6 +139,14 @@ Data <- R6::R6Class("Data",
     feature_names = function(value) {
       if (!missing(value)) stop("`feature_names` is read-only.", call. = FALSE)
       private$.feature_names
+    },
+
+    #' @field dummies Named list giving, for each categorical variable, the
+    #'   names of its dummy columns in the encoded matrix.
+    dummies = function(value) {
+      if (!missing(value)) stop("`dummies` is read-only.", call. = FALSE)
+      cat_vars <- names(private$.levels)
+      stats::setNames(lapply(cat_vars, private$dummy_names), cat_vars)
     }
   )
 )

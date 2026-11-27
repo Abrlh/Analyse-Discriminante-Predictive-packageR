@@ -26,16 +26,19 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     #'   stepwise selection). Default 0.15.
     #' @param slstay Significance level to stay in the model (backward and
     #'   stepwise selection). Default 0.15.
+    #' @param max_iter Maximum number of iterations of the variable selection
+    #'   (positive integer, default 100). The selection stops if it reaches it.
     #' @return A new `LDAClassifier` object.
     initialize = function(method = c("classic", "highdim"),
                           selection = c("none", "forward", "backward", "stepwise"),
-                          slentry = 0.15, slstay = 0.15) {
+                          slentry = 0.15, slstay = 0.15, max_iter = 100){
       # Vérifie que la valeur fait partie des choix autorisés
       private$.method <- match.arg(method)
       private$.selection <- match.arg(selection)
       # Seuils de la sélection (vérifiés par la classe Selection)
       private$.slentry <- slentry
       private$.slstay <- slstay
+      private$.max_iter <- max_iter
     },
 
     # Methode fit ***
@@ -243,6 +246,7 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     .is_fitted = FALSE,
     .slentry = NULL,        # seuil d'entrée de la sélection
     .slstay = NULL,         # seuil de maintien de la sélection
+    .max_iter = NULL,     # nombre maximal d'itérations de la sélection
 
     # Code commun à predict() et predict_proba() :
     # vérifie, code les nouvelles données et garde les colonnes du modèle
@@ -294,7 +298,8 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
         stop("The class `", cls, "` is not available yet.", call. = FALSE)
       }
 
-      get(cls, mode = "environment")$new(slentry = private$.slentry, slstay = private$.slstay)
+      get(cls, mode = "environment")$new(slentry = private$.slentry, slstay = private$.slstay, max_iter = private$.max_iter)
+    
     }
   ),
 

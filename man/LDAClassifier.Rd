@@ -72,7 +72,8 @@ fitting).}
   method = c("classic", "highdim"),
   selection = c("none", "forward", "backward", "stepwise"),
   slentry = 0.15,
-  slstay = 0.15
+  slstay = 0.15,
+  max_iter = 100
 )}
     \if{html}{\out{</div>}}
   }
@@ -87,6 +88,8 @@ fitting).}
 stepwise selection). Default 0.15.}
       \item{\code{slstay}}{Significance level to stay in the model (backward and
 stepwise selection). Default 0.15.}
+      \item{\code{max_iter}}{Maximum number of iterations of the variable selection
+(positive integer, default 100). The selection stops if it reaches it.}
     }
     \if{html}{\out{</div>}}
   }

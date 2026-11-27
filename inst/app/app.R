@@ -543,7 +543,7 @@ ui <- page_navbar(
               "input.selection == 'forward' || input.selection == 'stepwise'",
               sliderInput("alpha_in", label_info("Seuil d'entrée",
                             "Une variable entre dans le modèle si la p-value de son test F partiel est inférieure à ce seuil."),
-                          min = 0.01, max = 0.20, value = 0.05, step = 0.01,
+                          min = 0.01, max = 1, value = 0.15, step = 0.01,
                           width = "100%")
             ),
             # Seuil de maintien : sélections backward et stepwise
@@ -551,8 +551,15 @@ ui <- page_navbar(
               "input.selection == 'backward' || input.selection == 'stepwise'",
               sliderInput("alpha_out", label_info("Seuil de maintien",
                             "Une variable est retirée du modèle si la p-value de son test F partiel dépasse ce seuil."),
-                          min = 0.01, max = 0.20, value = 0.05, step = 0.01,
+                          min = 0.01, max = 1, value = 0.15, step = 0.01,
                           width = "100%")
+            ),
+            # Nombre maximal d'itérations : toutes les méthodes de sélection
+            conditionalPanel(
+              "input.selection != 'none'",
+              numericInput("max_iter", label_info("Nombre maximal d'itérations",
+                             "Sécurité : la sélection s'arrête si elle atteint ce nombre d'étapes."),
+                           value = 100, min = 1, step = 1, width = "100%")
             ),
             uiOutput("threshold_warning"),
             hr(),
@@ -662,6 +669,21 @@ ui <- page_navbar(
                   bsicons::bs_icon("clipboard-check"),
                   "Évaluation sur l'échantillon test"),
       card_body(uiOutput("test_ui"))
+    ),
+
+    # Évaluation globale et pertinence des variables
+    layout_columns(
+      col_widths = breakpoints(sm = 12, lg = c(5, 7)),
+      card(
+        card_header(class = "d-flex align-items-center gap-2",
+                    bsicons::bs_icon("clipboard-data"), "Évaluation globale du modèle"),
+        card_body(uiOutput("wilks_ui"))
+      ),
+      card(
+        card_header(class = "d-flex align-items-center gap-2",
+                    bsicons::bs_icon("bar-chart-steps"), "Pertinence des variables"),
+        card_body(uiOutput("var_tests_ui"))
+      )
     ),
 
     # Étapes de la sélection de variables
@@ -979,7 +1001,7 @@ server <- function(input, output, session) {
     X_train <- X[train_rows, , drop = FALSE]
     y_train <- y[train_rows]
 
-    m <- LDAClassifier$new(method = input$method, selection = input$selection, slentry = input$alpha_in, slstay = input$alpha_out)
+    m <- LDAClassifier$new(method = input$method, selection = input$selection, slentry = input$alpha_in, slstay = input$alpha_out, max_iter = input$max_iter)
     res <- withProgress(message = "Entraînement du modèle en cours...", value = 0.5, {
       safe_run(m$fit(X_train, y_train), "Erreur lors de l'entraînement du modèle :")
     })
@@ -1201,7 +1223,53 @@ server <- function(input, output, session) {
     sprintf("%d individus sur %d bien classés.", sum(diag(cm)), sum(cm))
   })
 
-    # Historique de la sélection : une ligne par étape
+  # p-values lisibles : "< 0,0001" pour les très petites, sinon 4 décimales
+  fmt_p <- function(p) ifelse(p < 1e-4, "< 0,0001", formatC(p, format = "f", digits = 4))
+
+  # Évaluation globale : lambda de Wilks + F de Rao
+  output$wilks_ui <- renderUI({
+    w <- analysis()$model$wilks
+    req(w)
+    separe <- w$p_value < 0.05
+    lignes <- list(
+      c("Lambda de Wilks", formatC(w$lambda, format = "f", digits = 4)),
+      c("F de Rao", sprintf("%.2f (ddl = %g ; %g)", w$F, w$df1, w$df2)),
+      c("p-value", fmt_p(w$p_value))
+    )
+    tagList(
+      tags$table(class = "table table-sm mb-3",
+        tags$tbody(lapply(lignes, function(l)
+          tags$tr(tags$th(class = "fw-semibold", l[1]),
+                  tags$td(class = "text-end", l[2]))))),
+      div(class = paste("alert mb-0", if (separe) "alert-success" else "alert-warning"),
+          if (separe) {
+            "Les classes sont significativement séparées : les centres des classes sont différents (p < 0,05). Plus le lambda est proche de 0, meilleure est la séparation."
+          } else {
+            "Les classes ne sont pas significativement séparées (p ≥ 0,05) : le modèle discrimine mal."
+          })
+    )
+  })
+
+  # Pertinence de chaque variable, en plus de toutes les autres
+  output$var_tests_ui <- renderUI({
+    vt <- analysis()$model$variable_tests
+    req(vt)
+    vt <- vt[order(vt$F, decreasing = TRUE), ]   # de la plus utile à la moins utile
+    tab <- data.frame(
+      "Variable"       = vt$variable,
+      "Lambda partiel" = formatC(vt$lambda_partial, format = "f", digits = 4),
+      "R² partiel"     = formatC(vt$R2_partial, format = "f", digits = 3),
+      "F"              = formatC(vt$F, format = "f", digits = 2),
+      "p-value"        = fmt_p(vt$p_value),
+      check.names = FALSE
+    )
+    tagList(
+      renderTable(tab),
+      helpText("Apport de chaque variable en plus de toutes les autres, de la plus utile à la moins utile. Une p-value élevée (> 0,05) signale une variable redondante.")
+    )
+  })
+
+  # Historique de la sélection : une ligne par étape
   output$selection_steps <- renderUI({
     a <- analysis()
     # Cas 1 : aucune sélection demandée
@@ -1215,14 +1283,14 @@ server <- function(input, output, session) {
       sprintf("La sélection n'a retiré aucune variable : toutes restent significatives au seuil de maintien (%s).", a$settings$alpha_out)))
     }
 
-    # Présentation en français
     tab <- data.frame(
-      "Étape"           = h$step,
+      "Étape"           = as.integer(h$step),
       "Action"          = ifelse(h$action == "add", "Entrée", "Sortie"),
       "Variable"        = h$variable,
-      "Lambda de Wilks" = round(h$lambda, 4),
-      "F"               = round(h$F, 2),
-      "p-value"         = ifelse(h$p_value < 1e-4, "< 0,0001", formatC(h$p_value, format = "f", digits = 4)),
+      "Lambda de Wilks" = formatC(h$lambda, format = "f", digits = 4),
+      "R² partiel"      = formatC(h$R2_partial, format = "f", digits = 3),
+      "F"               = formatC(h$F, format = "f", digits = 2),
+      "p-value"         = fmt_p(h$p_value),
       check.names = FALSE
     )
     tagList(

@@ -8,52 +8,57 @@ LDA <- R6Class(
       if (class(self)[1] == "LDA") stop("Classe abstraite")
     },
 
-    #' @description Calibrage de la classe et découpage pour les observations X et y
+    #' @description Calibrage de la classe sur les observations X et y
     #' @param X matrix
     #' @param y factor
-    #' @param seuil proportion de train
-    fit = function(X, y, seuil = 0.7, seed = NULL) {
-      if (is.null(seed)) {
-        set.seed(54)
-      } else {
-        set.seed(seed)
-      }
-
-      # découpage stratifié : seuil % de chaque classe dans le train
-      idx <- unlist(lapply(
-        split(seq_along(y), y), function(i) {
-          i[sample.int(length(i), round(length(i) * seuil))]
-        }
-      ))
-
-      private$X_train <- X[idx, , drop = FALSE]
-      private$y_train <- y[idx]
-      private$X_test <- X[-idx, , drop = FALSE]
-      private$y_test <- y[-idx]
+    fit = function(X, y) {
+      private$X <- X
+      private$y <- y
 
       # n , p , les classes et card(classs)
-      private$n <- nrow(private$X_train)
-      private$p <- ncol(private$X_train)
-      private$classes <- levels(private$y_train)
+      private$n <- nrow(private$X)
+      private$p <- ncol(private$X)
+      private$classes <- levels(private$y)
       private$K <- length(private$classes)
 
       # n_k
-      private$n_k <- table(private$y_train)
+      private$n_k <- table(private$y)
 
       # pi_k
       private$pi_k <- private$n_k / private$n
 
-      sum_xi <- rowsum(private$X_train, private$y_train)
+      sum_xi <- rowsum(private$X, private$y)
       private$mu_k <- sum_xi / as.vector(private$n_k)
 
-      private$W <- private$estimer_W(private$X_train, private$y_train)
+      private$W <- private$estimer_W(private$X, private$y)
       private$W_1 <- solve(private$W)
+
+      # coefficients des fonctions de classement : d_k(x) = a_k0 + a_k' x
+      A <- private$W_1 %*% t(private$mu_k) # p x K : a_k = W^-1 mu_k en colonnes
+      a0 <- log(as.vector(private$pi_k)) - 0.5 * colSums(t(private$mu_k) * A) # a_k0
+      private$coeff <- rbind(constante = a0, A) # (p + 1) x K
       invisible(self)
     },
-    #' @description Renvoie la classe majoritaire pour omega
-    #' @return `matrix`
-    predict = function(omega) {
-      stop("Méthode abstraite")
+    #' @description Rattache chaque individu de X à l'une des classes
+    #' @param X un ou plusieurs individus (un vecteur pour un seul individu, ou une matrice n x p)
+    #' @return `factor` de longueur n, avec les mêmes niveaux que y
+    predict = function(X) {
+      return(private$classer(self$scores(X)))
+    },
+    #' @description Probabilités d'appartenance de chaque individu de X à chaque classe
+    #' @param X un ou plusieurs individus (un vecteur pour un seul individu, ou une matrice n x p)
+    #' @return `matrix` n x K
+    predict_proba = function(X) {
+      scores <- self$scores(X)
+      e <- exp(scores - apply(scores, 1, max)) # softmax par ligne 
+      return(e / rowSums(e))
+    },
+    #' @description Scores d_k(x) des fonctions de classement
+    #' @param X un ou plusieurs individus (un vecteur pour un seul individu, ou une matrice n x p)
+    #' @return `matrix` n x K
+    scores = function(X) {
+      X <- matrix(as.matrix(X), ncol = private$p) # n x p, aussi pour un seul individu
+      return(cbind(1, X) %*% private$coeff) # la colonne de 1 multiplie la constante a_k0
     }
   ),
   active = list(
@@ -62,7 +67,7 @@ LDA <- R6Class(
     #' @field noms_classes Noms des classes (lecture seule).
     noms_classes = function() private$classes,
     #' @field noms_variables Noms des variables explicatives (lecture seule).
-    noms_variables = function() colnames(private$X_train),
+    noms_variables = function() colnames(private$X),
     #' @field nb_individus Nombre d'individus d'apprentissage (lecture seule).
     nb_individus = function() private$n,
     #' @field nb_variables Nombre de variables (lecture seule).
@@ -75,24 +80,18 @@ LDA <- R6Class(
     moyennes_classes = function() private$mu_k,
     #' @field covariance_intra Matrice de covariance intra-classe W (lecture seule).
     covariance_intra = function() private$W,
-    #' @field donnees_X_train Variables explicatives d'apprentissage (lecture seule).
-    donnees_X_train = function() private$X_train,
-    #' @field donnees_y_train Classes d'apprentissage (lecture seule).
-    donnees_y_train = function() private$y_train,
-    #' @field donnees_X_test Variables explicatives de test (lecture seule).
-    donnees_X_test = function() private$X_test,
-    #' @field donnees_y_test Classes de test (lecture seule).
-    donnees_y_test = function() private$y_test
+    #' @field donnees_X Variables explicatives d'apprentissage (lecture seule).
+    donnees_X = function() private$X,
+    #' @field donnees_y Classes d'apprentissage (lecture seule).
+    donnees_y = function() private$y
+    #' @field coeff_models_predictif coefficients des fonctions de classement
+    coeff_models_predictif = private$coeff
   ),
   private = list(
-    #' @field X_train
-    X_train = NULL,
-    #' @field y_train
-    y_train = NULL,
-    #' @field X_test
-    X_test = NULL,
-    #' @field y_test
-    y_test = NULL,
+    #' @field X
+    X = NULL,
+    #' @field y
+    y = NULL,
     #' @field n nombre d'individu dans le jeu d'apprentissage
     n = NULL,
     #' @field p nombre de variables dans le jeu d'apprentissage
@@ -110,13 +109,19 @@ LDA <- R6Class(
     #' @field mu_k matrice de moyenne pour les individus correspondant à la classe y_k par variables
     mu_k = NULL,
 
-    #' @field d Fonction de classement
-    d = function(k, x) stop("Méthode abstraite"),
-
     #' @field W matrice de covariance W
     W = NULL,
     #' @field W_1 Matrice de covariance W inverse
     W_1 = NULL,
-    estimer_W = function(X, y) stop("méthode abstraite")
+    #' @field coeff coefficients des fonctions de classement, (p + 1) x K
+    coeff = NULL,
+    estimer_W = function(X, y) stop("méthode abstraite"),
+
+    #'  Classement des individus à partir de leurs scores
+    #'  @param scores matrice n x K des scores d_k(x)
+    #'  @return pour chaque individu, la classe qui a le meilleur score (factor)
+    classer = function(scores) {
+      factor(private$classes[max.col(scores, ties.method = "first")], levels = private$classes) # argmax par individu
+    }
   )
 )

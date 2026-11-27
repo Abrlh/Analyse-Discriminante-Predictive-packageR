@@ -38,6 +38,12 @@ fitting).}
 
     \item{\code{accuracy}}{Proportion of correctly classified training observations
 (resubstitution rate, optimistic; \code{NULL} before fitting).}
+
+    \item{\code{wilks}}{Global test of the model: Wilks' lambda with Rao's F
+(\code{NULL} before fitting).}
+
+    \item{\code{variable_tests}}{Relevance of each variable of the model
+(\code{NULL} before fitting).}
   }
   \if{html}{\out{</div>}}
 }

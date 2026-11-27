@@ -359,6 +359,22 @@ LDAClassifier <- R6::R6Class("LDAClassifier",
     accuracy = function(value) {
       if (!missing(value)) stop("`accuracy` is read-only.", call. = FALSE)
       private$.summary$accuracy
+    },
+
+    #' @field wilks Global test of the model: Wilks' lambda with Rao's F
+    #'   (`NULL` before fitting).
+    wilks = function(value) {
+      if (!missing(value)) stop("`wilks` is read-only.", call. = FALSE)
+      if (is.null(private$.summary)) return(NULL)
+      private$.summary$wilks
+    },
+
+    #' @field variable_tests Relevance of each variable of the model
+    #'   (`NULL` before fitting).
+    variable_tests = function(value) {
+      if (!missing(value)) stop("`variable_tests` is read-only.", call. = FALSE)
+      if (is.null(private$.summary)) return(NULL)
+      private$.summary$variable_tests
     }
   )
 )

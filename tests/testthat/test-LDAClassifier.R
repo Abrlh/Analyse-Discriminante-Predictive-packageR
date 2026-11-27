@@ -136,3 +136,16 @@ test_that("a categorical variable is kept as a whole after selection", {
   out <- priv$complete_dummies(c("Petal.Length", "taille_grande"))
   expect_setequal(out, c("Petal.Length", "taille_moyenne", "taille_grande"))
 })
+
+test_that("Wilks' lambda and partial F tests match the reference values on iris", {
+  m <- LDAClassifier$new()
+  m$fit(iris[, 1:4], iris$Species)
+
+  w <- m$wilks
+  expect_equal(w$lambda, 0.02344, tolerance = 1e-3)
+  expect_equal(w$F, 199.15, tolerance = 1e-3)
+  expect_equal(c(w$df1, w$df2), c(8, 288))
+
+  vt <- m$variable_tests
+  expect_equal(vt$F, c(4.72, 21.94, 35.59, 24.90), tolerance = 1e-3)
+})

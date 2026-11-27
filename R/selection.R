@@ -80,6 +80,8 @@ calc_W_T = function(X, y) {
 #' Lambda(S) = det(W_SS) / det(T_SS), where W_SS and T_SS are the
 #' sub-matrices of W and T restricted to the variables of S.
 #' The closer to 0, the better the variables separate the classes.
+#' Computed with log-determinants, since det() overflows to Inf
+#' for large sets of variables with high variances.
 #'
 #' @param W Within-class scatter matrix (see `calc_W_T()`).
 #' @param T Total scatter matrix (see `calc_W_T()`).
@@ -91,7 +93,9 @@ wilks = function(W, T, vars) {
   if (length(vars) == 0) {
     return(1)
   } else {
-    return(det(W[vars, vars, drop = FALSE]) / det(T[vars, vars, drop = FALSE]))
+    log_det_W <- determinant(W[vars, vars, drop = FALSE], logarithm = TRUE)$modulus
+    log_det_T <- determinant(T[vars, vars, drop = FALSE], logarithm = TRUE)$modulus
+    return(exp(as.numeric(log_det_W - log_det_T)))
   }
 }
 

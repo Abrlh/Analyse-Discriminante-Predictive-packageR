@@ -1,9 +1,8 @@
 #' Check a significance threshold
 #'
 #' @param value Value to check.
-#' @param name Name of the parameter, used in the error message.
-#' @return `value`, unchanged, if it is a single number in \[0, 1\].
-#'   Otherwise an error is raised.
+#' @param name Parameter name, for the error message.
+#' @return `value` if it is a single number in \[0, 1\], an error otherwise.
 #' @keywords internal
 #' @noRd
 verif_threshold <- function(value, name) {
@@ -19,9 +18,8 @@ verif_threshold <- function(value, name) {
 #' Check a number of iterations
 #'
 #' @param value Value to check.
-#' @param name Name of the parameter, used in the error message.
-#' @return `value`, unchanged, if it is a single strictly positive integer.
-#'   Otherwise an error is raised.
+#' @param name Parameter name, for the error message.
+#' @return `value` if it is a single positive integer, an error otherwise.
 #' @keywords internal
 #' @noRd
 verif_iteration_number <- function(value, name) {
@@ -36,14 +34,11 @@ verif_iteration_number <- function(value, name) {
 
 #' Within-class and total scatter matrices
 #'
-#' Computes the within-class scatter matrix W and the total scatter
-#' matrix T, as sums of squares and cross-products (not divided by n).
-#' They satisfy T = W + B, where B is the between-class scatter matrix.
+#' Sums of squares and cross-products, not divided by n.
 #'
-#' @param X Numeric matrix or data frame (n rows, p columns).
-#' @param y Factor or vector of class labels, of length n.
-#' @return A list with two p x p symmetric matrices: `W` (within-class)
-#'   and `T` (total), with the column names of `X` as dimnames.
+#' @param X Numeric matrix or data frame (n x p).
+#' @param y Class labels, of length n.
+#' @return A list with the p x p matrices `W` and `T`.
 #' @keywords internal
 #' @noRd
 calc_W_T <- function(X, y) {
@@ -77,16 +72,12 @@ calc_W_T <- function(X, y) {
 
 #' Wilks' lambda of a set of variables
 #'
-#' Lambda(S) = det(W_SS) / det(T_SS), where W_SS and T_SS are the
-#' sub-matrices of W and T restricted to the variables of S.
-#' The closer to 0, the better the variables separate the classes.
-#' Computed with log-determinants, since det() overflows to Inf
-#' for large sets of variables with high variances.
+#' Lambda(S) = det(W_SS) / det(T_SS), computed with log-determinants
+#' (det() overflows for large sets).
 #'
-#' @param W Within-class scatter matrix (see `calc_W_T()`).
-#' @param T Total scatter matrix (see `calc_W_T()`).
-#' @param vars Character vector of variable names. May be empty.
-#' @return A single number in \[0, 1\]. By convention, 1 for an empty set.
+#' @param W,T Within-class and total scatter matrices.
+#' @param vars Variable names, possibly empty.
+#' @return A number in \[0, 1\], 1 for an empty set.
 #' @keywords internal
 #' @noRd
 wilks <- function(W, T, vars) {
@@ -99,27 +90,18 @@ wilks <- function(W, T, vars) {
   }
 }
 
-#' Partial Wilks' lambda and F test of a variable
+#' Partial F test from partial Wilks' lambdas
 #'
-#' Measures what variable `j` adds to the set `S`:
-#' lambda_p = Lambda(S + j) / Lambda(S), and
 #' F = ((n - K - q) / (K - 1)) * (1 - lambda_p) / lambda_p,
-#' which follows an F(K - 1, n - K - q) distribution, with q = |S|.
-#' Used for entry (j not in S) and for removal (S = selected set minus j).
+#' following F(K - 1, n - K - q). Vectorised over `lambda_p`.
 #'
-#' @param W Within-class scatter matrix.
-#' @param T Total scatter matrix.
-#' @param S Character vector of variables already in the model (without `j`).
-#' @param j Name of the tested variable.
-#' @param n Number of observations.
-#' @param K Number of classes.
-#' @return A list with `lambda_p` (partial lambda), `F` (F statistic)
-#'   and `p_value`.
+#' @param lambda_p Partial lambdas, Lambda(S + j) / Lambda(S).
+#' @param q Size of S (without j).
+#' @param n,K Number of observations and of classes.
+#' @return A list of vectors `lambda_p`, `F` and `p_value`.
 #' @keywords internal
 #' @noRd
-partial_stats <- function(W, T, S, j, n, K) {
-  q <- length(S)
-  lambda_p <- wilks(W, T, c(S, j)) / wilks(W, T, S)
+partial_stats <- function(lambda_p, q, n, K) {
   df1 <- K - 1
   df2 <- n - K - q
   F_stat <- (df2 / df1) * (1 - lambda_p) / lambda_p
@@ -136,17 +118,14 @@ partial_stats <- function(W, T, S, j, n, K) {
 #' @title Variable selection for linear discriminant analysis (abstract class)
 #'
 #' @description
-#' Abstract parent class of the variable selection methods based on
-#' Wilks' lambda (STEPDISC family). It works like a scikit-learn
-#' transformer: `fit()` chooses the variables, `transform()` keeps
-#' only those variables in a data set.
-#'
-#' This class is not used directly: use one of its subclasses,
-#' [SelectionForward], [SelectionBackward] or [SelectionStepwise].
+#' Parent class of the selection methods, used like a scikit-learn
+#' transformer (`fit()`, then `transform()`). Use its subclasses:
+#' [SelectionForward], [SelectionBackward], [SelectionStepwise]
+#' or [SelectionANOVA].
 #'
 #' @details
-#' Input data must already be preprocessed: numeric columns only,
-#' no missing values, column names required.
+#' Input data must be preprocessed: numeric columns with names,
+#' no missing values.
 #'
 #' @importFrom R6 R6Class
 #' @importFrom stats pf
@@ -164,60 +143,80 @@ Selection <- R6Class(
     .T = NULL,
     .n = NULL,
     .K = NULL,
+    .tolerance = 1e-8,
     search = function(X) {
       stop("must be implemented by a sub class")
     },
+    # All candidates at once:
+    # Lambda_p(j|S) = (w_jj - W_jS W_SS^-1 W_Sj) / (same with T)
     step_forward = function(S, variables) {
       candidates <- setdiff(variables, S)
       if (length(candidates) == 0) {
         return(NULL)
       }
 
-      best <- NULL
-      for (j in candidates) {
-        stats <- partial_stats(private$.W, private$.T, S, j, private$.n, private$.K)
+      W <- private$.W
+      T <- private$.T
+      w_res <- diag(W)[candidates]
+      t_res <- diag(T)[candidates]
 
-        if (!is.finite(stats$F)) {
-          next
+      if (length(S) > 0) {
+        W_SC <- W[S, candidates, drop = FALSE]
+        T_SC <- T[S, candidates, drop = FALSE]
+        residuals <- tryCatch(list(
+          w = colSums(W_SC * solve(W[S, S, drop = FALSE], W_SC)),
+          t = colSums(T_SC * solve(T[S, S, drop = FALSE], T_SC))
+        ), error = function(e) NULL) # singular matrix
+        if (is.null(residuals)) {
+          return(NULL)
         }
-
-        if (is.null(best) || stats$F > best$F) {
-          stats$variable <- j
-          best <- stats
-        }
+        w_res <- w_res - residuals$w
+        t_res <- t_res - residuals$t
       }
-      return(best)
+
+      # Tolerance: skip constant or collinear candidates
+      lambda_p <- w_res / t_res
+      lambda_p[!(t_res > private$.tolerance * diag(T)[candidates])] <- NA
+
+      stats <- partial_stats(lambda_p, length(S), private$.n, private$.K)
+      return(private$pick(stats, candidates, which.max))
     },
+
+    # All j in S at once: Lambda_p(j|S-j) = (T_SS^-1)_jj / (W_SS^-1)_jj
     step_backward = function(S) {
       if (length(S) == 0) {
         return(NULL)
       }
 
-      worst <- NULL
-      for (j in S) {
-        stats <- partial_stats(
-          private$.W,
-          private$.T,
-          setdiff(S, j),
-          j,
-          private$.n,
-          private$.K
-        )
-
-        if (!is.finite(stats$F)) {
-          next
-        }
-
-        if (is.null(worst) || stats$F < worst$F) {
-          stats$variable <- j
-          worst <- stats
-        }
+      inverses <- tryCatch(list(
+        W = solve(private$.W[S, S, drop = FALSE]),
+        T = solve(private$.T[S, S, drop = FALSE])
+      ), error = function(e) NULL) # singular matrix
+      if (is.null(inverses)) {
+        return(NULL)
       }
-      return(worst)
+
+      lambda_p <- diag(inverses$T) / diag(inverses$W)
+      stats <- partial_stats(lambda_p, length(S) - 1, private$.n, private$.K)
+      return(private$pick(stats, S, which.min))
     },
 
-    # One row of the history: action on a variable, given the stats
-    # returned by step_forward / step_backward and the set S after the action
+    # Variable with the max / min finite F (NULL if none)
+    pick = function(stats, variables, choose) {
+      F_finite <- ifelse(is.finite(stats$F), stats$F, NA)
+      if (all(is.na(F_finite))) {
+        return(NULL)
+      }
+      i <- choose(F_finite)
+      return(list(
+        lambda_p = unname(stats$lambda_p[i]),
+        F = unname(stats$F[i]),
+        p_value = unname(stats$p_value[i]),
+        variable = variables[i]
+      ))
+    },
+
+    # S = selected set after the action
     history_row = function(iter, action, stats, S) {
       data.frame(
         step = iter,
@@ -234,14 +233,9 @@ Selection <- R6Class(
   public = list(
     #' @description
     #' Create a new selection object.
-    #' @param slentry Significance level to enter a variable, in \[0, 1\].
-    #'   A variable enters if the p-value of its partial F test is lower
-    #'   than or equal to `slentry`. Default 0.15 (as in SAS PROC STEPDISC).
-    #' @param slstay Significance level to stay, in \[0, 1\].
-    #'   A selected variable is removed if its p-value becomes greater
-    #'   than `slstay`. Default 0.15.
-    #' @param max_iter Maximum number of iterations, a strictly positive
-    #'   integer. Default 100.
+    #' @param slentry Significance level to enter, in \[0, 1\]. Default 0.15.
+    #' @param slstay Significance level to stay, in \[0, 1\]. Default 0.15.
+    #' @param max_iter Maximum number of iterations. Default 100.
     #' @return A new `Selection` object.
     initialize = function(slentry = 0.15,
                           slstay = 0.15,
@@ -253,12 +247,9 @@ Selection <- R6Class(
 
     #' @description
     #' Select the variables of `X` that best separate the classes of `y`.
-    #' Previous results are reset at each call.
-    #' @param X Numeric data frame or matrix (n rows, p columns), with
-    #'   column names and no missing values.
-    #' @param y Factor or vector of class labels, of length n, with at
-    #'   least 2 classes and no missing values.
-    #' @return The object itself, invisibly (so calls can be chained).
+    #' @param X Numeric data frame or matrix (n x p).
+    #' @param y Class labels, of length n, with at least 2 classes.
+    #' @return The object itself, invisibly.
     fit = function(X, y) {
       private$.selected <- NULL
       private$.history <- NULL
@@ -297,10 +288,8 @@ Selection <- R6Class(
 
     #' @description
     #' Keep only the selected variables of a data set.
-    #' @param X Data frame or matrix containing at least the selected
-    #'   columns (for example a test set with the same variables).
-    #' @return `X` restricted to the selected columns, in selection order,
-    #'   with the same type as `X`.
+    #' @param X Data frame or matrix containing the selected columns.
+    #' @return `X` restricted to the selected columns.
     transform = function(X) {
       if (!private$.is_fitted) {
         stop("the object is not fitted")
@@ -316,8 +305,7 @@ Selection <- R6Class(
 
     #' @description
     #' Shortcut for `fit(X, y)` followed by `transform(X)`.
-    #' @param X Numeric data frame or matrix (see `fit()`).
-    #' @param y Factor or vector of class labels (see `fit()`).
+    #' @param X,y See `fit()`.
     #' @return `X` restricted to the selected columns.
     fit_transform = function(X, y) {
       self$fit(X, y)
@@ -345,8 +333,7 @@ Selection <- R6Class(
     },
 
     #' @description
-    #' Print the step-by-step history of the selection (see the `history`
-    #' field).
+    #' Print the selection history (see `history`).
     #' @return The object itself, invisibly.
     summary = function() {
       cat(class(self)[1], "\n")
@@ -388,8 +375,7 @@ Selection <- R6Class(
       }
     },
 
-    #' @field selected Character vector of the selected variables, in
-    #'   order of entry. `NULL` before `fit()` (read-only).
+    #' @field selected Selected variables, in order of entry (read-only).
     selected = function(value) {
       if (missing(value)) {
         return(private$.selected)
@@ -398,16 +384,10 @@ Selection <- R6Class(
       }
     },
 
-    #' @field history Data frame with one row per action (read-only),
-    #'   `NULL` before `fit()` or if no variable entered. Columns:
-    #'   * `step`: iteration number.
-    #'   * `action`: `"add"` or `"remove"`.
-    #'   * `variable`: variable added or removed.
-    #'   * `lambda`: Wilks' lambda of the selected set *after* the action.
-    #'   * `lambda_p`: partial Wilks' lambda of the variable.
-    #'   * `R2_partial`: partial R-squared, `1 - lambda_p`.
-    #'   * `F`: partial F statistic.
-    #'   * `p_value`: p-value of the partial F test.
+    #' @field history Data frame, one row per action (read-only):
+    #'   `step`, `action` (`"add"` or `"remove"`), `variable`, `lambda`
+    #'   (Wilks' lambda after the action), `lambda_p` (partial lambda),
+    #'   `R2_partial`, `F` and `p_value`.
     history = function(value) {
       if (missing(value)) {
         return(private$.history)
@@ -431,25 +411,15 @@ Selection <- R6Class(
 #' @title Stepwise variable selection (STEPDISC)
 #'
 #' @description
-#' Stepwise selection of variables for linear discriminant analysis,
-#' based on Wilks' lambda and the partial F test, as in SAS
-#' PROC STEPDISC.
+#' Stepwise selection based on Wilks' lambda and the partial F test,
+#' as in SAS PROC STEPDISC.
 #'
 #' @details
-#' Starting from an empty set, each iteration:
-#' 1. **Entry**: among the variables not yet selected, takes the one
-#'    with the largest partial F. It enters if its p-value is lower
-#'    than or equal to `slentry`. Otherwise the selection stops.
-#' 2. **Removal**: among the selected variables, takes the one with
-#'    the smallest partial F. It is removed if its p-value is greater
-#'    than `slstay`.
-#'
-#' The selection also stops when every variable is selected or after
-#' `max_iter` iterations. `slentry` must be lower than or equal to
-#' `slstay`, otherwise a variable could enter and leave in a loop.
-#'
-#' Variables whose partial F cannot be computed (constant variable,
-#' variable collinear with the selected ones) are ignored.
+#' From an empty set, each iteration adds the variable with the largest
+#' partial F if its p-value is <= `slentry` (otherwise it stops), then
+#' removes the selected variable with the smallest F if its p-value
+#' is > `slstay`. `slentry` must be <= `slstay`. Constant or collinear
+#' variables are ignored.
 #'
 #' @references
 #' Rakotomalala R., *Analyse discriminante linéaire*, course notes,
@@ -462,10 +432,7 @@ Selection <- R6Class(
 #' sel$fit(iris[, 1:4], iris$Species)
 #' sel$selected
 #' sel$summary()
-#'
-#' # Keep only the selected variables
 #' X_sel <- sel$transform(iris[, 1:4])
-#' head(X_sel)
 #'
 #' @export
 SelectionStepwise <- R6Class(
@@ -505,8 +472,7 @@ SelectionStepwise <- R6Class(
     #' @description
     #' Create a new stepwise selection object.
     #' @param slentry Significance level to enter, in \[0, 1\]. Default 0.15.
-    #' @param slstay Significance level to stay, in \[0, 1\], greater than
-    #'   or equal to `slentry`. Default 0.15.
+    #' @param slstay Significance level to stay, >= `slentry`. Default 0.15.
     #' @param max_iter Maximum number of iterations. Default 100.
     #' @return A new `SelectionStepwise` object.
     initialize = function(slentry = 0.15,
@@ -528,21 +494,14 @@ SelectionStepwise <- R6Class(
 #' @title Forward variable selection (STEPDISC)
 #'
 #' @description
-#' Forward selection of variables for linear discriminant analysis,
-#' based on Wilks' lambda and the partial F test, as in SAS
-#' PROC STEPDISC (METHOD = FORWARD).
+#' Forward selection based on Wilks' lambda and the partial F test,
+#' as in SAS PROC STEPDISC (METHOD = FORWARD).
 #'
 #' @details
-#' Starting from an empty set, each iteration takes, among the variables
-#' not yet selected, the one with the largest partial F. It enters if its
-#' p-value is lower than or equal to `slentry`. Otherwise the selection
-#' stops. A variable that has entered is never removed, so `slstay` is
-#' not used.
-#'
-#' The selection also stops when every variable is selected or after
-#' `max_iter` iterations. Variables whose partial F cannot be computed
-#' (constant variable, variable collinear with the selected ones) are
-#' ignored.
+#' From an empty set, each iteration adds the variable with the largest
+#' partial F if its p-value is <= `slentry`, otherwise it stops. No
+#' variable is removed, so `slstay` is not used. Constant or collinear
+#' variables are ignored.
 #'
 #' @references
 #' Rakotomalala R., *Analyse discriminante linéaire*, course notes,
@@ -587,22 +546,14 @@ SelectionForward <- R6Class("SelectionForward",
 #' @title Backward variable selection (STEPDISC)
 #'
 #' @description
-#' Backward elimination of variables for linear discriminant analysis,
-#' based on Wilks' lambda and the partial F test, as in SAS
-#' PROC STEPDISC (METHOD = BACKWARD).
+#' Backward elimination based on Wilks' lambda and the partial F test,
+#' as in SAS PROC STEPDISC (METHOD = BACKWARD).
 #'
 #' @details
-#' Starting from all the variables, each iteration takes, among the
-#' selected variables, the one with the smallest partial F. It is removed
-#' if its p-value is greater than `slstay`. Otherwise the selection
-#' stops. A variable that has been removed never comes back, so
-#' `slentry` is not used.
-#'
-#' The selection also stops when no variable is left or after `max_iter`
-#' iterations. Backward elimination starts from the full model, so it
-#' needs more observations than variables: `n - K >= p`, where `K` is
-#' the number of classes. For high-dimensional data, use
-#' [SelectionForward] or [SelectionStepwise].
+#' From all the variables, each iteration removes the variable with the
+#' smallest partial F if its p-value is > `slstay`, otherwise it stops.
+#' `slentry` is not used. Requires `n - K >= p`: for high-dimensional
+#' data, use [SelectionForward] or [SelectionStepwise].
 #'
 #' @references
 #' Rakotomalala R., *Analyse discriminante linéaire*, course notes,
@@ -643,6 +594,85 @@ SelectionBackward <- R6Class("SelectionBackward",
 
       private$.selected <- S
       private$.history <- history
+    }
+  )
+)
+
+
+
+#' @title Univariate ANOVA filter
+#'
+#' @description
+#' Variable filter for high-dimensional data, based on a one-way ANOVA
+#' F test for each variable taken alone.
+#'
+#' @details
+#' Variables are ranked by decreasing F. Those with a p-value lower than
+#' or equal to `slentry` are kept, up to `max_var` variables. The filter
+#' ignores the redundancy between variables, and is typically used
+#' before [SelectionStepwise] or [SelectionForward]. In `history`,
+#' `action` is `"keep"` and `lambda` is `NA`. `slstay` and `max_iter`
+#' are not used.
+#'
+#' @references
+#' Rakotomalala R., *Analyse discriminante linéaire*, course notes,
+#' Université Lumière Lyon 2.
+#'
+#' @examples
+#' sel <- SelectionANOVA$new(slentry = 0.05, max_var = 2)
+#' sel$fit(iris[, 1:4], iris$Species)
+#' sel$selected
+#' sel$summary()
+#'
+#' @export
+SelectionANOVA <- R6Class("SelectionANOVA",
+  inherit = Selection,
+  private = list(
+    .max_var = NULL,
+    search = function(X) {
+      variables <- colnames(X)
+      w <- diag(private$.W)[variables]
+      t <- diag(private$.T)[variables]
+
+      # Partial lambda with an empty S, NA for constant variables
+      lambda_p <- ifelse(t > 0, w / t, NA)
+      stats <- partial_stats(lambda_p, 0, private$.n, private$.K)
+
+      kept <- which(is.finite(stats$F) & stats$p_value <= private$.slentry)
+      kept <- kept[order(stats$F[kept], decreasing = TRUE)]
+      if (!is.null(private$.max_var)) {
+        kept <- kept[seq_len(min(length(kept), private$.max_var))]
+      }
+
+      private$.selected <- variables[kept]
+      if (length(kept) > 0) {
+        private$.history <- data.frame(
+          step = seq_along(kept),
+          action = "keep",
+          variable = variables[kept],
+          lambda = NA_real_,
+          lambda_p = unname(stats$lambda_p[kept]),
+          R2_partial = unname(1 - stats$lambda_p[kept]),
+          F = unname(stats$F[kept]),
+          p_value = unname(stats$p_value[kept])
+        )
+      }
+    }
+  ),
+  public = list(
+    #' @description
+    #' Create a new ANOVA filter.
+    #' @param slentry Significance level to keep a variable, in \[0, 1\].
+    #'   Default 0.15.
+    #' @param max_var Maximum number of variables to keep, or `NULL` for
+    #'   no limit. Default `NULL`.
+    #' @return A new `SelectionANOVA` object.
+    initialize = function(slentry = 0.15, max_var = NULL) {
+      # slstay and max_iter unused
+      super$initialize(slentry = slentry, slstay = 1, max_iter = 1)
+      if (!is.null(max_var)) {
+        private$.max_var <- verif_iteration_number(value = max_var, name = "max_var")
+      }
     }
   )
 )
